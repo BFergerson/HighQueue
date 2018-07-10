@@ -133,8 +133,8 @@ public class KueWorker extends AbstractVerticle {
         } else {
           this.emitJobEvent("failed", job, new JsonObject().put("message", ex.getMessage()));
         }
-        prepareAndStart();
       }
+      prepareAndStart();
     });
   }
 
