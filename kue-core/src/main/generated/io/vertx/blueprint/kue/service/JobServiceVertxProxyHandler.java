@@ -95,7 +95,7 @@ public class JobServiceVertxProxyHandler extends ProxyHandler {
 
   public MessageConsumer<JsonObject> registerHandler(String address) {
     MessageConsumer<JsonObject> consumer = vertx.eventBus().<JsonObject>consumer(address).handler(this);
-    this.setConsumer(consumer);
+    this.consumer = consumer;
     return consumer;
   }
 
