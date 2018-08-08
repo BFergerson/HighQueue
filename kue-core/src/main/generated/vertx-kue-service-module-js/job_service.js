@@ -17,6 +17,7 @@
 /** @module vertx-kue-service-module-js/job_service */
 var utils = require('vertx-js/util/utils');
 var Vertx = require('vertx-js/vertx');
+var RedisClient = require('vertx-redis-js/redis_client');
 
 var io = Packages.io;
 var JsonObject = io.vertx.core.json.JsonObject;
@@ -423,35 +424,35 @@ var JobService = function(j_val) {
 
 JobService._jclass = utils.getJavaClass("io.vertx.blueprint.kue.service.JobService");
 JobService._jtype = {
-  accept: function (obj) {
+  accept: function(obj) {
     return JobService._jclass.isInstance(obj._jdel);
   },
-  wrap: function (jdel) {
+  wrap: function(jdel) {
     var obj = Object.create(JobService.prototype, {});
     JobService.apply(obj, arguments);
     return obj;
   },
-  unwrap: function (obj) {
+  unwrap: function(obj) {
     return obj._jdel;
   }
 };
-JobService._create = function (jdel) {
+JobService._create = function(jdel) {
   var obj = Object.create(JobService.prototype, {});
   JobService.apply(obj, arguments);
   return obj;
 }
 /**
- Factory method for creating a {@link JobService} instance.
 
  @memberof module:vertx-kue-service-module-js/job_service
- @param vertx {Vertx} Vertx instance
- @param config {Object} configuration
- @return {JobService} the new {@link JobService} instance
+ @param vertx {Vertx} 
+ @param config {Object} 
+ @param redisClient {RedisClient} 
+ @return {JobService}
  */
-JobService.create = function(vertx, config) {
+JobService.create = function(vertx, config, redisClient) {
   var __args = arguments;
-  if (__args.length === 2 && typeof __args[0] === 'object' && __args[0]._jdel && (typeof __args[1] === 'object' && __args[1] != null)) {
-    return utils.convReturnVertxGen(JobService, JJobService["create(io.vertx.core.Vertx,io.vertx.core.json.JsonObject)"](vertx._jdel, utils.convParamJsonObject(config)));
+  if (__args.length === 3 && typeof __args[0] === 'object' && __args[0]._jdel && (typeof __args[1] === 'object' && __args[1] != null) && typeof __args[2] === 'object' && __args[2]._jdel) {
+    return utils.convReturnVertxGen(JobService, JJobService["create(io.vertx.core.Vertx,io.vertx.core.json.JsonObject,io.vertx.redis.RedisClient)"](vertx._jdel, utils.convParamJsonObject(config), redisClient._jdel));
   } else throw new TypeError('function invoked with invalid arguments');
 };
 
@@ -460,8 +461,8 @@ JobService.create = function(vertx, config) {
  This is useful for doing RPCs.
 
  @memberof module:vertx-kue-service-module-js/job_service
- @param vertx {Vertx} Vertx instance
- @param address {string} event bus address of RPC
+ @param vertx {Vertx} Vertx instance 
+ @param address {string} event bus address of RPC 
  @return {JobService} the new {@link JobService} service proxy
  */
 JobService.createProxy = function(vertx, address) {

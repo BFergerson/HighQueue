@@ -442,7 +442,7 @@ var CallbackKue = function(j_val) {
     var __args = arguments;
     if (__args.length === 2 && typeof __args[0] === 'string' && typeof __args[1] === 'function') {
       j_callbackKue["on(java.lang.String,io.vertx.core.Handler)"](eventType, function(jVal) {
-        handler(utils.convReturnVertxGen(Message, jVal, undefined));
+      handler(utils.convReturnVertxGen(Message, jVal, undefined));
     });
       return that;
     } else throw new TypeError('function invoked with invalid arguments');
@@ -458,7 +458,7 @@ var CallbackKue = function(j_val) {
   this.saveJob = function(job, handler) {
     var __args = arguments;
     if (__args.length === 2 && (typeof __args[0] === 'object' && __args[0] != null) && typeof __args[1] === 'function') {
-      j_callbackKue["saveJob(io.vertx.blueprint.kue.queue.Job,io.vertx.core.Handler)"](job != null ? new Job(new JsonObject(Java.asJSONCompatible(job))) : null, function (ar) {
+      j_callbackKue["saveJob(io.vertx.blueprint.kue.queue.Job,io.vertx.core.Handler)"](job != null ? new Job(new JsonObject(Java.asJSONCompatible(job))) : null, function(ar) {
       if (ar.succeeded()) {
         handler(utils.convReturnDataObject(ar.result()), null);
       } else {
@@ -481,7 +481,7 @@ var CallbackKue = function(j_val) {
   this.jobProgress = function(job, complete, total, handler) {
     var __args = arguments;
     if (__args.length === 4 && (typeof __args[0] === 'object' && __args[0] != null) && typeof __args[1] ==='number' && typeof __args[2] ==='number' && typeof __args[3] === 'function') {
-      j_callbackKue["jobProgress(io.vertx.blueprint.kue.queue.Job,int,int,io.vertx.core.Handler)"](job != null ? new Job(new JsonObject(Java.asJSONCompatible(job))) : null, complete, total, function (ar) {
+      j_callbackKue["jobProgress(io.vertx.blueprint.kue.queue.Job,int,int,io.vertx.core.Handler)"](job != null ? new Job(new JsonObject(Java.asJSONCompatible(job))) : null, complete, total, function(ar) {
       if (ar.succeeded()) {
         handler(utils.convReturnDataObject(ar.result()), null);
       } else {
@@ -565,19 +565,19 @@ var CallbackKue = function(j_val) {
 
 CallbackKue._jclass = utils.getJavaClass("io.vertx.blueprint.kue.CallbackKue");
 CallbackKue._jtype = {
-  accept: function (obj) {
+  accept: function(obj) {
     return CallbackKue._jclass.isInstance(obj._jdel);
   },
-  wrap: function (jdel) {
+  wrap: function(jdel) {
     var obj = Object.create(CallbackKue.prototype, {});
     CallbackKue.apply(obj, arguments);
     return obj;
   },
-  unwrap: function (obj) {
+  unwrap: function(obj) {
     return obj._jdel;
   }
 };
-CallbackKue._create = function (jdel) {
+CallbackKue._create = function(jdel) {
   var obj = Object.create(CallbackKue.prototype, {});
   CallbackKue.apply(obj, arguments);
   return obj;
