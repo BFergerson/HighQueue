@@ -20,6 +20,7 @@ public class KueProcessTest {
     private static final String HOST = "localhost";
 
     private static final String TYPE = "test:inserts";
+    private static final String TYPE_DELAYED = "test_delayed:inserts";
 
     private static Kue kue;
 
@@ -49,10 +50,10 @@ public class KueProcessTest {
         kue.on("error", error -> {
             context.fail(((JsonObject) error.body()).getString("message"));
         });
-        kue.process(TYPE, job -> {
+        kue.process(TYPE_DELAYED, job -> {
             context.assertEquals(Priority.NORMAL, job.getPriority());
             context.assertEquals(JobState.ACTIVE, job.getState());
-            context.assertEquals(new JsonObject().put("data", TYPE + ":data"), job.getData());
+            context.assertEquals(new JsonObject().put("data", TYPE_DELAYED + ":data"), job.getData());
 
             kue.getJob(job.getId()).setHandler(it -> {
                 if (it.succeeded()) {
@@ -63,7 +64,7 @@ public class KueProcessTest {
                 }
             });
         });
-        kue.createJob(TYPE, new JsonObject().put("data", TYPE + ":data")).setDelay(3000).save();
+        kue.createJob(TYPE_DELAYED, new JsonObject().put("data", TYPE_DELAYED + ":data")).setDelay(3000).save();
     }
 
     @Test(timeout = 2500)

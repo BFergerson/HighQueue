@@ -46,6 +46,11 @@ public class Kue {
         this.jobService = JobService.createProxy(vertx, EB_JOB_SERVICE_ADDRESS);
         this.client = RedisHelper.client(vertx, config);
         this.redisAPI = RedisAPI.api(client);
+        client.connect(it -> {
+            if (it.failed()) {
+                it.cause().printStackTrace();
+            }
+        });
         Job.setVertx(vertx, redisAPI, config); // init static vertx instance inner job
     }
 
@@ -56,6 +61,11 @@ public class Kue {
         this.jobService = JobService.createProxy(vertx, EB_JOB_SERVICE_ADDRESS);
         this.client = redisClient;
         this.redisAPI = RedisAPI.api(client);
+        client.connect(it -> {
+            if (it.failed()) {
+                it.cause().printStackTrace();
+            }
+        });
         Job.setVertx(vertx, redisAPI, config); // init static vertx instance inner job
     }
 

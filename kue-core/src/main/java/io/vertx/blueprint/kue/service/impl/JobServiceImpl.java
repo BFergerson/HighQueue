@@ -13,6 +13,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.redis.client.RedisAPI;
+import io.vertx.redis.client.ResponseType;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -156,7 +157,18 @@ public final class JobServiceImpl implements JobService {
                 if (r.result().size() == 0) { // maybe empty
                     handler.handle(Future.succeededFuture(new ArrayList<>()));
                 } else {
-                    JsonArray result = new JsonArray(r.result().toString());
+                    JsonArray result = new JsonArray();
+                    r.result().forEach(it -> {
+                        if (it.type() == ResponseType.MULTI) {
+                            JsonArray innerArray = new JsonArray();
+                            it.forEach(it2 -> {
+                                innerArray.add(it2.toString());
+                            });
+                            result.add(innerArray);
+                        } else {
+                            result.add(it.toString());
+                        }
+                    });
                     List<Long> list = (List<Long>) result.getList().stream()
                             .map(e -> RedisHelper.numStripFIFO((String) e))
                             .collect(Collectors.toList());
@@ -312,7 +324,18 @@ public final class JobServiceImpl implements JobService {
     public JobService getIdsByState(JobState state, Handler<AsyncResult<List<Long>>> handler) {
         client.zrange(Arrays.asList(RedisHelper.getStateKey(state), "0", "-1"), r -> {
             if (r.succeeded()) {
-                JsonArray result = new JsonArray(r.result().toString());
+                JsonArray result = new JsonArray();
+                r.result().forEach(it -> {
+                    if (it.type() == ResponseType.MULTI) {
+                        JsonArray innerArray = new JsonArray();
+                        it.forEach(it2 -> {
+                            innerArray.add(it2.toString());
+                        });
+                        result.add(innerArray);
+                    } else {
+                        result.add(it.toString());
+                    }
+                });
                 List<Long> list = result.stream()
                         .map(e -> RedisHelper.numStripFIFO((String) e))
                         .collect(Collectors.toList());
