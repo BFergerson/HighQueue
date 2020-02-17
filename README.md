@@ -1,4 +1,4 @@
-# HighQueue
+# HighKue
 
 [![Build Status](https://travis-ci.com/bfergerson/vertx-kue.svg?branch=master)](https://travis-ci.com/bfergerson/vertx-kue)
 
