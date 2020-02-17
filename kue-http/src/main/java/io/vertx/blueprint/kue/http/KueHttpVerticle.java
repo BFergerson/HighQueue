@@ -16,7 +16,7 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.StaticHandler;
-import io.vertx.ext.web.templ.JadeTemplateEngine;
+import io.vertx.ext.web.templ.jade.JadeTemplateEngine;
 
 /**
  * The verticle serving Kue UI and REST API.
@@ -61,7 +61,7 @@ public class KueHttpVerticle extends AbstractVerticle {
   public void start(Future<Void> future) throws Exception {
     // init kue
     kue = Kue.createQueue(vertx, config());
-    engine = JadeTemplateEngine.create();
+    engine = JadeTemplateEngine.create(vertx);
     // create route
     final Router router = Router.router(vertx);
     router.route().handler(BodyHandler.create());
@@ -117,7 +117,7 @@ public class KueHttpVerticle extends AbstractVerticle {
         context.put("state", state)
           .put("types", r)
           .put("title", title);
-        engine.render(context, uiPath, res -> {
+        engine.render(context.getBodyAsJson(), uiPath, res -> {
           if (res.succeeded()) {
             context.response()
               .putHeader("content-type", "text/html")
