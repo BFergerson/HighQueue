@@ -11,7 +11,7 @@ import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import io.vertx.redis.RedisClient;
+import io.vertx.redis.client.RedisAPI;
 import io.vertx.serviceproxy.ServiceProxyBuilder;
 
 import java.util.List;
@@ -36,7 +36,7 @@ public interface JobService {
 //    return new JobServiceImpl(vertx, config);
 //  }
 
-    static JobService create(Vertx vertx, JsonObject config, RedisClient redisClient) {
+    static JobService create(Vertx vertx, JsonObject config, RedisAPI redisClient) {
         return new JobServiceImpl(vertx, config, redisClient);
     }
 

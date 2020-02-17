@@ -3,8 +3,9 @@ package io.vertx.blueprint.kue.util;
 import io.vertx.blueprint.kue.queue.JobState;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
-import io.vertx.redis.RedisClient;
-import io.vertx.redis.RedisOptions;
+import io.vertx.core.net.SocketAddress;
+import io.vertx.redis.client.Redis;
+import io.vertx.redis.client.RedisOptions;
 
 /**
  * Helper class for operating Redis.
@@ -25,8 +26,8 @@ public final class RedisHelper {
      * @param config configuration
      * @return the new Redis client instance
      */
-    public static RedisClient client(Vertx vertx, JsonObject config) {
-        return RedisClient.create(vertx, options(config));
+    public static Redis client(Vertx vertx, JsonObject config) {
+        return Redis.createClient(vertx, options(config));
     }
 
     /**
@@ -37,9 +38,10 @@ public final class RedisHelper {
      */
     public static RedisOptions options(JsonObject config) {
         return new RedisOptions()
-                .setHost(config.getString("redis.host", "127.0.0.1"))
-                .setPort(config.getInteger("redis.port", 6379))
-                .setAuth(config.getString("redis.auth", null));
+                .setEndpoint(SocketAddress.inetSocketAddress(
+                        config.getInteger("redis.port", 6379),
+                        config.getString("redis.host", "127.0.0.1"))
+                ).setPassword(config.getString("redis.auth", null));
     }
 
     /**

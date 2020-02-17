@@ -39,7 +39,7 @@ public class KueRestApiTest {
             if (r.succeeded()) {
                 Vertx vertx = r.result();
                 kue = Kue.createQueue(vertx, new JsonObject());
-                vertx.deployVerticle(new KueVerticle(), r2 -> {
+                vertx.deployVerticle(new KueVerticle(kue), r2 -> {
                     if (r2.succeeded()) {
                         kue.jobRangeByType(TYPE, "inactive", 0, 100, "asc").setHandler(r1 -> {
                             if (r1.succeeded()) {

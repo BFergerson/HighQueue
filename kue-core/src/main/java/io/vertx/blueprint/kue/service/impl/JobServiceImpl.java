@@ -10,11 +10,13 @@ import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import io.vertx.redis.RedisClient;
+import io.vertx.core.logging.Logger;
+import io.vertx.core.logging.LoggerFactory;
+import io.vertx.redis.client.RedisAPI;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * Redis backend implementation of {@link JobService}.
@@ -23,9 +25,11 @@ import java.util.stream.Collectors;
  */
 public final class JobServiceImpl implements JobService {
 
+    private static final Logger logger = LoggerFactory.getLogger(JobServiceImpl.class);
+
     private final Vertx vertx;
     private final JsonObject config;
-    private final RedisClient client;
+    private final RedisAPI client;
 
     public JobServiceImpl(Vertx vertx) {
         this(vertx, new JsonObject());
@@ -34,15 +38,15 @@ public final class JobServiceImpl implements JobService {
     public JobServiceImpl(Vertx vertx, JsonObject config) {
         this.vertx = vertx;
         this.config = config;
-        this.client = RedisClient.create(vertx, RedisHelper.options(config));
-        Job.setVertx(vertx, RedisHelper.client(vertx, config), config); // init static vertx instance inner job
+        this.client = RedisAPI.api(RedisHelper.client(vertx, config));
+        Job.setVertx(vertx, client, config); // init static vertx instance inner job
     }
 
-    public JobServiceImpl(Vertx vertx, JsonObject config, RedisClient redisClient) {
+    public JobServiceImpl(Vertx vertx, JsonObject config, RedisAPI redisClient) {
         this.vertx = vertx;
         this.config = config;
         this.client = redisClient;
-        Job.setVertx(vertx, client, config); // init static vertx instance inner job
+        Job.setVertx(vertx, redisClient, config); // init static vertx instance inner job
     }
 
     @Override
@@ -51,10 +55,12 @@ public final class JobServiceImpl implements JobService {
         client.hgetall(RedisHelper.getKey("job:" + id), r -> {
             if (r.succeeded()) {
                 try {
-                    if (!r.result().containsKey("id")) {
+                    JsonObject result = new JsonObject(toMap(
+                            StreamSupport.stream(r.result().spliterator(), false).toArray()));
+                    if (!result.containsKey("id")) {
                         handler.handle(Future.succeededFuture());
                     } else {
-                        Job job = new Job(r.result());
+                        Job job = new Job(result);
                         job.setId(id);
                         job.setZid(zid);
                         handler.handle(Future.succeededFuture(job));
@@ -91,9 +97,9 @@ public final class JobServiceImpl implements JobService {
 
     @Override
     public JobService existsJob(long id, Handler<AsyncResult<Boolean>> handler) {
-        client.exists(RedisHelper.getKey("job:" + id), r -> {
+        client.exists(Collections.singletonList(RedisHelper.getKey("job:" + id)), r -> {
             if (r.succeeded()) {
-                if (r.result() == 0)
+                if (r.result().toInteger() == 0)
                     handler.handle(Future.succeededFuture(false));
                 else
                     handler.handle(Future.succeededFuture(true));
@@ -106,7 +112,13 @@ public final class JobServiceImpl implements JobService {
 
     @Override
     public JobService getJobLog(long id, Handler<AsyncResult<JsonArray>> handler) {
-        client.lrange(RedisHelper.getKey("job:" + id + ":log"), 0, -1, handler);
+        client.lrange(RedisHelper.getKey("job:" + id + ":log"), "0", "-1", it -> {
+            if (it.succeeded()) {
+                handler.handle(Future.succeededFuture(new JsonArray(it.result().toString())));
+            } else {
+                handler.handle(Future.failedFuture(it.cause()));
+            }
+        });
         return this;
     }
 
@@ -139,12 +151,13 @@ public final class JobServiceImpl implements JobService {
             handler.handle(Future.failedFuture("to can not be greater than from"));
             return this;
         }
-        client.zrange(RedisHelper.getKey(key), from, to, r -> {
+        client.zrange(Arrays.asList(RedisHelper.getKey(key), Long.toString(from), Long.toString(to)), r -> {
             if (r.succeeded()) {
                 if (r.result().size() == 0) { // maybe empty
                     handler.handle(Future.succeededFuture(new ArrayList<>()));
                 } else {
-                    List<Long> list = (List<Long>) r.result().getList().stream()
+                    JsonArray result = new JsonArray(r.result().toString());
+                    List<Long> list = (List<Long>) result.getList().stream()
                             .map(e -> RedisHelper.numStripFIFO((String) e))
                             .collect(Collectors.toList());
                     list.sort((a1, a2) -> {
@@ -184,29 +197,35 @@ public final class JobServiceImpl implements JobService {
      * @param handler result handler
      */
     private JobService removeBadJob(long id, String jobType, Handler<AsyncResult<Void>> handler) {
+        logger.error("Removing bad job: " + id);
         String zid = RedisHelper.createFIFO(id);
-        client.transaction().multi(null)
-                .del(RedisHelper.getKey("job:" + id + ":log"), null)
-                .del(RedisHelper.getKey("job:" + id), null)
-                .zrem(RedisHelper.getKey("jobs:INACTIVE"), zid, null)
-                .zrem(RedisHelper.getKey("jobs:ACTIVE"), zid, null)
-                .zrem(RedisHelper.getKey("jobs:COMPLETE"), zid, null)
-                .zrem(RedisHelper.getKey("jobs:FAILED"), zid, null)
-                .zrem(RedisHelper.getKey("jobs:DELAYED"), zid, null)
-                .zrem(RedisHelper.getKey("jobs"), zid, null)
-                .zrem(RedisHelper.getKey("jobs:" + jobType + ":INACTIVE"), zid, null)
-                .zrem(RedisHelper.getKey("jobs:" + jobType + ":ACTIVE"), zid, null)
-                .zrem(RedisHelper.getKey("jobs:" + jobType + ":COMPLETE"), zid, null)
-                .zrem(RedisHelper.getKey("jobs:" + jobType + ":FAILED"), zid, null)
-                .zrem(RedisHelper.getKey("jobs:" + jobType + ":DELAYED"), zid, null)
-                .exec(r -> {
-                    if (handler != null) {
-                        if (r.succeeded())
-                            handler.handle(Future.succeededFuture());
-                        else
-                            handler.handle(Future.failedFuture(r.cause()));
-                    }
-                });
+        client.multi(it -> {
+            if (it.succeeded()) {
+                client.del(Collections.singletonList(RedisHelper.getKey("job:" + id + ":log")), null)
+                        .del(Collections.singletonList(RedisHelper.getKey("job:" + id)), null)
+                        .zrem(Arrays.asList(RedisHelper.getKey("jobs:INACTIVE"), zid), null)
+                        .zrem(Arrays.asList(RedisHelper.getKey("jobs:ACTIVE"), zid), null)
+                        .zrem(Arrays.asList(RedisHelper.getKey("jobs:COMPLETE"), zid), null)
+                        .zrem(Arrays.asList(RedisHelper.getKey("jobs:FAILED"), zid), null)
+                        .zrem(Arrays.asList(RedisHelper.getKey("jobs:DELAYED"), zid), null)
+                        .zrem(Arrays.asList(RedisHelper.getKey("jobs"), zid), null)
+                        .zrem(Arrays.asList(RedisHelper.getKey("jobs:" + jobType + ":INACTIVE"), zid), null)
+                        .zrem(Arrays.asList(RedisHelper.getKey("jobs:" + jobType + ":ACTIVE"), zid), null)
+                        .zrem(Arrays.asList(RedisHelper.getKey("jobs:" + jobType + ":COMPLETE"), zid), null)
+                        .zrem(Arrays.asList(RedisHelper.getKey("jobs:" + jobType + ":FAILED"), zid), null)
+                        .zrem(Arrays.asList(RedisHelper.getKey("jobs:" + jobType + ":DELAYED"), zid), null)
+                        .exec(r -> {
+                            if (handler != null) {
+                                if (r.succeeded())
+                                    handler.handle(Future.succeededFuture());
+                                else
+                                    handler.handle(Future.failedFuture(r.cause()));
+                            }
+                        });
+            } else {
+                handler.handle(Future.failedFuture(it.cause()));
+            }
+        });
 
         // TODO: add search functionality
 
@@ -215,13 +234,25 @@ public final class JobServiceImpl implements JobService {
 
     @Override
     public JobService cardByType(String type, JobState state, Handler<AsyncResult<Long>> handler) {
-        client.zcard(RedisHelper.getKey("jobs:" + type + ":" + state.name()), handler);
+        client.zcard(RedisHelper.getKey("jobs:" + type + ":" + state.name()), it -> {
+            if (it.succeeded()) {
+                handler.handle(Future.succeededFuture(it.result().toLong()));
+            } else {
+                handler.handle(Future.failedFuture(it.cause()));
+            }
+        });
         return this;
     }
 
     @Override
     public JobService card(JobState state, Handler<AsyncResult<Long>> handler) {
-        client.zcard(RedisHelper.getKey("jobs:" + state.name()), handler);
+        client.zcard(RedisHelper.getKey("jobs:" + state.name()), it -> {
+            if (it.succeeded()) {
+                handler.handle(Future.succeededFuture(it.result().toLong()));
+            } else {
+                handler.handle(Future.failedFuture(it.cause()));
+            }
+        });
         return this;
     }
 
@@ -269,7 +300,7 @@ public final class JobServiceImpl implements JobService {
     public JobService getAllTypes(Handler<AsyncResult<List<String>>> handler) {
         client.smembers(RedisHelper.getKey("job:types"), r -> {
             if (r.succeeded()) {
-                handler.handle(Future.succeededFuture(r.result().getList()));
+                handler.handle(Future.succeededFuture(new JsonArray(r.result().toString()).getList()));
             } else {
                 handler.handle(Future.failedFuture(r.cause()));
             }
@@ -279,9 +310,10 @@ public final class JobServiceImpl implements JobService {
 
     @Override
     public JobService getIdsByState(JobState state, Handler<AsyncResult<List<Long>>> handler) {
-        client.zrange(RedisHelper.getStateKey(state), 0, -1, r -> {
+        client.zrange(Arrays.asList(RedisHelper.getStateKey(state), "0", "-1"), r -> {
             if (r.succeeded()) {
-                List<Long> list = r.result().stream()
+                JsonArray result = new JsonArray(r.result().toString());
+                List<Long> list = result.stream()
                         .map(e -> RedisHelper.numStripFIFO((String) e))
                         .collect(Collectors.toList());
                 handler.handle(Future.succeededFuture(list));
@@ -296,11 +328,28 @@ public final class JobServiceImpl implements JobService {
     public JobService getWorkTime(Handler<AsyncResult<Long>> handler) {
         client.get(RedisHelper.getKey("stats:work-time"), r -> {
             if (r.succeeded()) {
-                handler.handle(Future.succeededFuture(Long.parseLong(r.result() == null ? "0" : r.result())));
+                handler.handle(Future.succeededFuture(r.result() == null ? 0 : r.result().toLong()));
             } else {
                 handler.handle(Future.failedFuture(r.cause()));
             }
         });
         return this;
+    }
+
+    private static Map<String, Object> toMap(final Object... params) {
+        if (params.length % 2 != 0) {
+            throw new IllegalArgumentException("Last key has no value");
+        }
+        Map<String, Object> result = new HashMap<>();
+        String key = null;
+        for (Object param : params) {
+            if (key == null) {
+                key = param.toString();
+            } else {
+                result.put(key, param.toString());
+                key = null;
+            }
+        }
+        return result;
     }
 }

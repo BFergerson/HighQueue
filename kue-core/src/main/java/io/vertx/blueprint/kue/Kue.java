@@ -12,9 +12,14 @@ import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import io.vertx.redis.RedisClient;
+import io.vertx.core.logging.Logger;
+import io.vertx.core.logging.LoggerFactory;
+import io.vertx.redis.client.Redis;
+import io.vertx.redis.client.RedisAPI;
+import io.vertx.redis.client.ResponseType;
 import io.vertx.redis.op.RangeLimitOptions;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,25 +32,31 @@ import static io.vertx.blueprint.kue.queue.KueVerticle.EB_JOB_SERVICE_ADDRESS;
  */
 public class Kue {
 
+    private static final Logger logger = LoggerFactory.getLogger(Kue.class);
+
     private final JsonObject config;
     private final Vertx vertx;
     private final JobService jobService;
-    private final RedisClient client;
+    private final Redis client;
+    private final RedisAPI redisAPI;
 
     public Kue(Vertx vertx, JsonObject config) {
         this.vertx = vertx;
         this.config = config;
         this.jobService = JobService.createProxy(vertx, EB_JOB_SERVICE_ADDRESS);
         this.client = RedisHelper.client(vertx, config);
-        Job.setVertx(vertx, RedisHelper.client(vertx, config), config); // init static vertx instance inner job
+        this.redisAPI = RedisAPI.api(client);
+        Job.setVertx(vertx, redisAPI, config); // init static vertx instance inner job
     }
 
-    public Kue(Vertx vertx, JsonObject config, RedisClient redisClient) {
-        this.vertx = vertx;
+    public Kue(Vertx vertx, JsonObject config, Redis redisClient) {
+        this.vertx = vertx;  this.checkJobPromotion();
+        this.checkActiveJobTtl();
         this.config = config;
         this.jobService = JobService.createProxy(vertx, EB_JOB_SERVICE_ADDRESS);
         this.client = redisClient;
-        Job.setVertx(vertx, redisClient, config); // init static vertx instance inner job
+        this.redisAPI = RedisAPI.api(client);
+        Job.setVertx(vertx, redisAPI, config); // init static vertx instance inner job
     }
 
     /**
@@ -109,7 +120,7 @@ public class Kue {
     }
 
     private void processInternal(String type, Handler<Job> handler, boolean isWorker) {
-        KueWorker worker = new KueWorker(type, handler, this, client);
+        KueWorker worker = new KueWorker(type, handler, this);
         DeploymentOptions options = new DeploymentOptions();
         options.setWorker(isWorker);
         options.setConfig(config);
@@ -117,7 +128,7 @@ public class Kue {
             if (r0.succeeded()) {
                 this.on("job_complete", msg -> {
                     long dur = new Job(((JsonObject) msg.body()).getJsonObject("job")).getDuration();
-                    client.incrby(RedisHelper.getKey("stats:work-time"), dur, r1 -> {
+                    redisAPI.incrby(RedisHelper.getKey("stats:work-time"), Long.toString(dur), r1 -> {
                         if (r1.failed())
                             r1.cause().printStackTrace();
                     });
@@ -414,24 +425,43 @@ public class Kue {
         int limit = config.getInteger("job.promotion.limit", 1000);
         // need a mechanism to stop the circuit timer
         vertx.setPeriodic(timeout, l -> {
-            client.zrangebyscore(RedisHelper.getKey("jobs:DELAYED"), String.valueOf(0), String.valueOf(System.currentTimeMillis()),
-                    new RangeLimitOptions(new JsonObject().put("offset", 0).put("count", limit)), r -> {
-                        if (r.succeeded()) {
-                            r.result().forEach(r1 -> {
-                                long id = Long.parseLong(RedisHelper.stripFIFO((String) r1));
-                                this.getJob(id).compose(jr -> jr.get().inactive())
-                                        .setHandler(jr -> {
-                                            if (jr.succeeded()) {
-                                                jr.result().emit("promotion", jr.result().getId());
-                                            } else {
-                                                jr.cause().printStackTrace();
-                                            }
-                                        });
+            logger.trace("Checking for delayed jobs");
+            List<String> zrangebyscoreArgs = new ArrayList<>();
+            zrangebyscoreArgs.add(RedisHelper.getKey("jobs:DELAYED"));
+            zrangebyscoreArgs.add(String.valueOf(0));
+            zrangebyscoreArgs.add(String.valueOf(System.currentTimeMillis()));
+            zrangebyscoreArgs.addAll(new RangeLimitOptions(new JsonObject().put("offset", 0).put("count", limit)).toJsonArray().getList());
+            redisAPI.zrangebyscore(zrangebyscoreArgs, r -> {
+                if (r.succeeded()) {
+                    JsonArray result = new JsonArray();
+                    r.result().forEach(it -> {
+                        if (it.type() == ResponseType.MULTI) {
+                            JsonArray innerArray = new JsonArray();
+                            it.forEach(it2 -> {
+                                innerArray.add(it2.toString());
                             });
+                            result.add(innerArray);
                         } else {
-                            r.cause().printStackTrace();
+                            result.add(it.toString());
                         }
                     });
+                    result.forEach(r1 -> {
+                        long id = Long.parseLong(RedisHelper.stripFIFO((String) r1));
+                        logger.info("Found delayed job: " + id);
+
+                        this.getJob(id).compose(jr -> jr.get().inactive())
+                                .setHandler(jr -> {
+                                    if (jr.succeeded()) {
+                                        jr.result().emit("promotion", jr.result().getId());
+                                    } else {
+                                        jr.cause().printStackTrace();
+                                    }
+                                });
+                    });
+                } else {
+                    r.cause().printStackTrace();
+                }
+            });
         });
     }
 
@@ -443,11 +473,24 @@ public class Kue {
         int limit = config.getInteger("job.ttl.limit", 1000);
         // need a mechanism to stop the circuit timer
         vertx.setPeriodic(timeout, l -> {
-            client.zrangebyscore(RedisHelper.getKey("jobs:ACTIVE"), String.valueOf(100000), String.valueOf(System.currentTimeMillis()),
-                    new RangeLimitOptions(new JsonObject().put("offset", 0).put("count", limit)), r -> {
-
-                    });
+            List<String> zrangebyscoreArgs = new ArrayList<>();
+            zrangebyscoreArgs.add(RedisHelper.getKey("jobs:ACTIVE"));
+            zrangebyscoreArgs.add(String.valueOf(100000));
+            zrangebyscoreArgs.add(String.valueOf(System.currentTimeMillis()));
+            zrangebyscoreArgs.addAll(new RangeLimitOptions(new JsonObject().put("offset", 0).put("count", limit)).toJsonArray().getList());
+            redisAPI.zrangebyscore(zrangebyscoreArgs, r -> {
+                if (r.failed()) {
+                    r.cause().printStackTrace();
+                }
+            });
         });
     }
 
+    public Redis getClient() {
+        return client;
+    }
+
+    public RedisAPI getRedisAPI() {
+        return redisAPI;
+    }
 }

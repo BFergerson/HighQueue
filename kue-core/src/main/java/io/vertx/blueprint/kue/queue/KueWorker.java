@@ -12,8 +12,10 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import io.vertx.redis.RedisClient;
+import io.vertx.redis.client.RedisAPI;
+import io.vertx.redis.client.ResponseType;
 
+import java.util.Arrays;
 import java.util.Optional;
 
 /**
@@ -23,10 +25,10 @@ import java.util.Optional;
  */
 public class KueWorker extends AbstractVerticle {
 
-    private static Logger logger = LoggerFactory.getLogger(Job.class);
+    private static final Logger logger = LoggerFactory.getLogger(KueWorker.class);
 
     private final Kue kue;
-    private RedisClient client; // Every worker use different clients.
+    private RedisAPI client; // Every worker use different clients.
     private EventBus eventBus;
     private Job job;
     private final String type;
@@ -35,18 +37,25 @@ public class KueWorker extends AbstractVerticle {
     private MessageConsumer<JsonObject> doneConsumer; // Preserve for unregister the consumer.
     private MessageConsumer<String> doneFailConsumer;
 
-    public KueWorker(String type, Handler<Job> jobHandler, Kue kue, RedisClient redisClient) {
+    public KueWorker(String type, Handler<Job> jobHandler, Kue kue) {
         this.type = type;
         this.jobHandler = jobHandler;
         this.kue = kue;
-        this.client = redisClient;
     }
 
     @Override
-    public void start() throws Exception {
+    public void start(Future<Void> startFuture) throws Exception {
         this.eventBus = vertx.eventBus();
+        RedisHelper.client(vertx, config()).connect(it -> {
+            if (it.succeeded()) {
+                this.client = RedisAPI.api(it.result());
+                prepareAndStart();
 
-        prepareAndStart();
+                startFuture.complete();
+            } else {
+                startFuture.fail(it.cause());
+            }
+        });
     }
 
     /**
@@ -122,6 +131,9 @@ public class KueWorker extends AbstractVerticle {
         job.failedAttempt(ex).setHandler(r -> {
             if (r.failed()) {
                 this.error(r.cause(), job);
+
+                //todo: may need to move prepareAndStart() down one
+                logger.error("Failed to set failedAttempt. Didn't call prepareAndStart");
             } else {
                 Job res = r.result();
                 if (res.hasAttempts()) {
@@ -142,13 +154,23 @@ public class KueWorker extends AbstractVerticle {
      */
     private Future<Long> zpop(String key) {
         Future<Long> future = Future.future();
-        client.transaction()
-                .multi(_failure())
-                .zrange(key, 0, 0, _failure())
-                .zremrangebyrank(key, 0, 0, _failure())
+        client.multi(_failure())
+                .zrange(Arrays.asList(key, "0", "0"), _failure())
+                .zremrangebyrank(key, "0", "0", _failure())
                 .exec(r -> {
                     if (r.succeeded()) {
-                        JsonArray res = r.result();
+                        JsonArray res = new JsonArray();
+                        r.result().forEach(it -> {
+                            if (it.type() == ResponseType.MULTI) {
+                                JsonArray innerArray = new JsonArray();
+                                it.forEach(it2 -> {
+                                    innerArray.add(it2.toString());
+                                });
+                                res.add(innerArray);
+                            } else {
+                                res.add(it.toString());
+                            }
+                        });
                         if (res.getJsonArray(0).size() == 0) // empty set
                             future.fail(new IllegalStateException("Empty zpop set"));
                         else {
@@ -172,10 +194,11 @@ public class KueWorker extends AbstractVerticle {
      * @return async result of job
      */
     private Future<Optional<Job>> getJobFromBackend() {
+        logger.debug("Getting job from backend");
         Future<Optional<Job>> future = Future.future();
-        client.blpop(RedisHelper.getKey(this.type + ":jobs"), 0, r1 -> {
+        client.blpop(Arrays.asList(RedisHelper.getKey(this.type + ":jobs"), "0"), r1 -> {
             if (r1.failed()) {
-                client.lpush(RedisHelper.getKey(this.type + ":jobs"), "1", r2 -> {
+                client.lpush(Arrays.asList(RedisHelper.getKey(this.type + ":jobs"), "1"), r2 -> {
                     if (r2.failed())
                         future.fail(r2.cause());
                 });

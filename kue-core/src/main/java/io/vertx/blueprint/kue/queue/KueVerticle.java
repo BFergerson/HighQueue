@@ -1,14 +1,15 @@
 package io.vertx.blueprint.kue.queue;
 
+import io.vertx.blueprint.kue.Kue;
 import io.vertx.blueprint.kue.service.JobService;
-import io.vertx.blueprint.kue.util.RedisHelper;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import io.vertx.redis.RedisClient;
 import io.vertx.serviceproxy.ServiceBinder;
+
+import java.util.Collections;
 
 /**
  * Vert.x Blueprint - Job Queue
@@ -22,29 +23,29 @@ public class KueVerticle extends AbstractVerticle {
 
     public static final String EB_JOB_SERVICE_ADDRESS = "vertx.kue.service.job.internal";
 
+    private final Kue kue;
     private JsonObject config;
     private JobService jobService;
-    private RedisClient redisClient;
 
-    public KueVerticle() {
-    }
-
-    public KueVerticle(RedisClient redisClient) {
-        this.redisClient = redisClient;
+    public KueVerticle(Kue kue) {
+        this.kue = kue;
     }
 
     @Override
-    public void start(Future<Void> future) throws Exception {
+    public void start(Future<Void> future) {
         this.config = config();
-        if (this.redisClient == null) {
-            // create redis client
-            this.redisClient = RedisHelper.client(vertx, config);
-            this.jobService = JobService.create(vertx, config, RedisHelper.client(vertx, config));
-        } else {
-            this.jobService = JobService.create(vertx, config, redisClient);
-        }
+        this.jobService = JobService.create(vertx, config, kue.getRedisAPI());
+        kue.getClient().connect(it -> {
+            if (it.succeeded()) {
+                testConnection(future);
+            } else {
+                future.fail(it.cause());
+            }
+        });
+    }
 
-        redisClient.ping(pr -> { // test connection
+    private void testConnection(Future<Void> future) {
+        kue.getRedisAPI().ping(Collections.emptyList(), pr -> { // test connection
             if (pr.succeeded()) {
                 logger.info("Kue Verticle is running...");
 
@@ -59,5 +60,4 @@ public class KueVerticle extends AbstractVerticle {
             }
         });
     }
-
 }
