@@ -1,4 +1,4 @@
-rootProject.name = 'vertx-blueprint-job-queue'
+rootProject.name = 'HighKue'
 
 include "kue-core"
 include "kue-http"
