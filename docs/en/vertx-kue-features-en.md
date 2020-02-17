@@ -1,4 +1,4 @@
-# Vert.x Kue Features
+# HighKue Features
 
 ## Scope
 
