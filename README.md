@@ -1,18 +1,11 @@
-# HighQueue
+# HighKue
 
 [![Build Status](https://travis-ci.com/bfergerson/vertx-kue.svg?branch=master)](https://travis-ci.com/bfergerson/vertx-kue)
 
 **HighKue** is a priority task queue developed with Vert.x and backed by **Redis**.
-It's a Vert.x implementation version of [Automattic/kue](https://github.com/Automattic/kue).
-Fork of the original [sczyh30/vertx-kue](https://github.com/sczyh30/vertx-kue).
+It's a Vert.x implementation version of [Automattic/kue](https://github.com/Automattic/kue) and fork of the original [sczyh30/vertx-kue](https://github.com/sczyh30/vertx-kue).
 
 todo: doc differences and stuff
-
-## Detailed Document
-
-Detailed documents and tutorials:
-
-- [English Version](http://sczyh30.github.io/vertx-kue/kue-core/index.html)
 
 ## Features
 
@@ -29,7 +22,7 @@ Detailed documents and tutorials:
 - Polyglot language support
 - Powered by Vert.x!
 
-For the detail of the features, please see [Vert.x Kue Features](docs/en/vertx-kue-features-en.md).
+For the detail of the features, please see [HighKue Features](docs/en/vertx-kue-features-en.md).
 
 ## Build/Run
 
@@ -61,7 +54,7 @@ Then you can visit `http://localhost:8080` to inspect the queue via Kue UI in th
 
 ### Run with Docker Compose
 
-To run Vert.x Kue with Docker Compose:
+To run HighKue with Docker Compose:
 
 ```
 docker-compose up --build
