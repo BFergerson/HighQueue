@@ -117,7 +117,7 @@ public class KueHttpVerticle extends AbstractVerticle {
         context.put("state", state)
           .put("types", r)
           .put("title", title);
-        engine.render(context.getBodyAsJson(), uiPath, res -> {
+        engine.render(context.data(), uiPath, res -> {
           if (res.succeeded()) {
             context.response()
               .putHeader("content-type", "text/html")
