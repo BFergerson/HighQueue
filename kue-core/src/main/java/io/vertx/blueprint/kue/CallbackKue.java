@@ -19,30 +19,30 @@ import io.vertx.core.json.JsonObject;
 @VertxGen
 public interface CallbackKue extends JobService {
 
-  static CallbackKue createKue(Vertx vertx, JsonObject config) {
-    return new CallbackKueImpl(vertx, config);
-  }
+    static CallbackKue createKue(Vertx vertx, JsonObject config) {
+        return new CallbackKueImpl(vertx, config);
+    }
 
-  Job createJob(String type, JsonObject data);
+    Job createJob(String type, JsonObject data);
 
-  @Fluent
-  <R> CallbackKue on(String eventType, Handler<Message<R>> handler);
+    @Fluent
+    <R> CallbackKue on(String eventType, Handler<Message<R>> handler);
 
-  @Fluent
-  CallbackKue saveJob(Job job, Handler<AsyncResult<Job>> handler);
+    @Fluent
+    CallbackKue saveJob(Job job, Handler<AsyncResult<Job>> handler);
 
-  @Fluent
-  CallbackKue jobProgress(Job job, int complete, int total, Handler<AsyncResult<Job>> handler);
+    @Fluent
+    CallbackKue jobProgress(Job job, int complete, int total, Handler<AsyncResult<Job>> handler);
 
-  @Fluent
-  CallbackKue jobDone(Job job);
+    @Fluent
+    CallbackKue jobDone(Job job);
 
-  @Fluent
-  CallbackKue jobDoneFail(Job job, Throwable ex);
+    @Fluent
+    CallbackKue jobDoneFail(Job job, Throwable ex);
 
-  @Fluent
-  CallbackKue process(String type, int n, Handler<Job> handler);
+    @Fluent
+    CallbackKue process(String type, int n, Handler<Job> handler);
 
-  @Fluent
-  CallbackKue processBlocking(String type, int n, Handler<Job> handler);
+    @Fluent
+    CallbackKue processBlocking(String type, int n, Handler<Job> handler);
 }

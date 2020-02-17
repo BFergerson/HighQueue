@@ -19,45 +19,45 @@ import io.vertx.serviceproxy.ProxyHelper;
  */
 public class KueVerticle extends AbstractVerticle {
 
-  private static Logger logger = LoggerFactory.getLogger(Job.class);
+    private static Logger logger = LoggerFactory.getLogger(Job.class);
 
-  public static final String EB_JOB_SERVICE_ADDRESS = "vertx.kue.service.job.internal";
+    public static final String EB_JOB_SERVICE_ADDRESS = "vertx.kue.service.job.internal";
 
-  private JsonObject config;
-  private JobService jobService;
-  private RedisClient redisClient;
+    private JsonObject config;
+    private JobService jobService;
+    private RedisClient redisClient;
 
-  public KueVerticle() {
-  }
-
-  public KueVerticle(RedisClient redisClient) {
-      this.redisClient = redisClient;
-  }
-
-  @Override
-  public void start(Future<Void> future) throws Exception {
-    this.config = config();
-    if (this.redisClient == null) {
-      // create redis client
-      this.redisClient = RedisHelper.client(vertx, config);
-      this.jobService = JobService.create(vertx, config, RedisHelper.client(vertx, config));
-    } else {
-        this.jobService = JobService.create(vertx, config, redisClient);
+    public KueVerticle() {
     }
 
-    redisClient.ping(pr -> { // test connection
-      if (pr.succeeded()) {
-        logger.info("Kue Verticle is running...");
+    public KueVerticle(RedisClient redisClient) {
+        this.redisClient = redisClient;
+    }
 
-        // register job service
-        ProxyHelper.registerService(JobService.class, vertx, jobService, EB_JOB_SERVICE_ADDRESS);
+    @Override
+    public void start(Future<Void> future) throws Exception {
+        this.config = config();
+        if (this.redisClient == null) {
+            // create redis client
+            this.redisClient = RedisHelper.client(vertx, config);
+            this.jobService = JobService.create(vertx, config, RedisHelper.client(vertx, config));
+        } else {
+            this.jobService = JobService.create(vertx, config, redisClient);
+        }
 
-        future.complete();
-      } else {
-        logger.error("oops!", pr.cause());
-        future.fail(pr.cause());
-      }
-    });
-  }
+        redisClient.ping(pr -> { // test connection
+            if (pr.succeeded()) {
+                logger.info("Kue Verticle is running...");
+
+                // register job service
+                ProxyHelper.registerService(JobService.class, vertx, jobService, EB_JOB_SERVICE_ADDRESS);
+
+                future.complete();
+            } else {
+                logger.error("oops!", pr.cause());
+                future.fail(pr.cause());
+            }
+        });
+    }
 
 }
