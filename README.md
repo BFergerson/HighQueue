@@ -1,11 +1,12 @@
-# Vert.x Kue
+# HighQueue
 
-[![Build Status](https://travis-ci.org/sczyh30/vertx-kue.svg?branch=master)](https://travis-ci.org/sczyh30/vertx-kue)
+[![Build Status](https://travis-ci.org/bfergerson/highqueue.svg?branch=master)](https://travis-ci.org/bfergerson/highqueue)
 
-**Vert.x Kue** is a priority task queue developed with Vert.x and backed by **Redis**.
+**HighQueue** is a priority task queue developed with Vert.x and backed by **Redis**.
 It's a Vert.x implementation version of [Automattic/kue](https://github.com/Automattic/kue).
+Fork of the original [sczyh30/vertx-kue](https://github.com/sczyh30/vertx-kue).
 
-This blueprint is an introduction to **message-based application development using Vert.x**.
+todo: doc differences and stuff
 
 ## Detailed Document
 
@@ -76,7 +77,3 @@ java -jar kue-example/build/libs/vertx-blueprint-kue-example.jar -cluster
 # Architecture
 
 ![Diagram - How Vert.x Kue works](https://raw.githubusercontent.com/sczyh30/vertx-kue/master/docs/images/kue_diagram.png)
-
-## Want to improve this blueprint ?
-
-Forks and PRs are definitely welcome !
