@@ -8,8 +8,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.redis.RedisClient;
-import io.vertx.serviceproxy.ProxyHelper;
-
+import io.vertx.serviceproxy.ServiceBinder;
 
 /**
  * Vert.x Blueprint - Job Queue
@@ -19,7 +18,7 @@ import io.vertx.serviceproxy.ProxyHelper;
  */
 public class KueVerticle extends AbstractVerticle {
 
-    private static Logger logger = LoggerFactory.getLogger(Job.class);
+    private static final Logger logger = LoggerFactory.getLogger(Job.class);
 
     public static final String EB_JOB_SERVICE_ADDRESS = "vertx.kue.service.job.internal";
 
@@ -50,7 +49,8 @@ public class KueVerticle extends AbstractVerticle {
                 logger.info("Kue Verticle is running...");
 
                 // register job service
-                ProxyHelper.registerService(JobService.class, vertx, jobService, EB_JOB_SERVICE_ADDRESS);
+                new ServiceBinder(vertx).setAddress(EB_JOB_SERVICE_ADDRESS)
+                        .register(JobService.class, jobService);
 
                 future.complete();
             } else {

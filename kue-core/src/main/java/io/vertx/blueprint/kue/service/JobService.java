@@ -12,7 +12,7 @@ import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.redis.RedisClient;
-import io.vertx.serviceproxy.ProxyHelper;
+import io.vertx.serviceproxy.ServiceProxyBuilder;
 
 import java.util.List;
 
@@ -49,7 +49,9 @@ public interface JobService {
      * @return the new {@link JobService} service proxy
      */
     static JobService createProxy(Vertx vertx, String address) {
-        return ProxyHelper.createProxy(JobService.class, vertx, address);
+        return new ServiceProxyBuilder(vertx)
+                .setAddress(address)
+                .build(JobService.class);
     }
 
     /**

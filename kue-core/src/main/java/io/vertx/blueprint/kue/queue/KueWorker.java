@@ -16,7 +16,6 @@ import io.vertx.redis.RedisClient;
 
 import java.util.Optional;
 
-
 /**
  * The verticle for processing Kue tasks.
  *
@@ -33,8 +32,8 @@ public class KueWorker extends AbstractVerticle {
     private final String type;
     private final Handler<Job> jobHandler;
 
-    private MessageConsumer doneConsumer; // Preserve for unregister the consumer.
-    private MessageConsumer doneFailConsumer;
+    private MessageConsumer<JsonObject> doneConsumer; // Preserve for unregister the consumer.
+    private MessageConsumer<String> doneFailConsumer;
 
     public KueWorker(String type, Handler<Job> jobHandler, Kue kue, RedisClient redisClient) {
         this.type = type;
@@ -95,12 +94,10 @@ public class KueWorker extends AbstractVerticle {
                         // subscribe the job done event
 
                         doneConsumer = eventBus.consumer(Kue.workerAddress("done", j), msg -> {
-                            createDoneCallback(j).handle(Future.succeededFuture(
-                                    ((JsonObject) msg.body()).getJsonObject("result")));
+                            createDoneCallback(j).handle(Future.succeededFuture(msg.body().getJsonObject("result")));
                         });
                         doneFailConsumer = eventBus.consumer(Kue.workerAddress("done_fail", j), msg -> {
-                            createDoneCallback(j).handle(Future.failedFuture(
-                                    (String) msg.body()));
+                            createDoneCallback(j).handle(Future.failedFuture(msg.body()));
                         });
                     } else {
                         this.emitJobEvent("error", this.job, new JsonObject().put("message", r.cause().getMessage()));

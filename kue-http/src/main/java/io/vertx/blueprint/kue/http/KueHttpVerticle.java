@@ -25,7 +25,7 @@ import io.vertx.ext.web.templ.jade.JadeTemplateEngine;
  */
 public class KueHttpVerticle extends AbstractVerticle {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(KueHttpVerticle.class);
+    private static final Logger logger = LoggerFactory.getLogger(KueHttpVerticle.class);
 
     private static final String HOST = "0.0.0.0";
     private static final int PORT = 8080; // Default port
@@ -271,8 +271,8 @@ public class KueHttpVerticle extends AbstractVerticle {
             String order = context.request().getParam("order");
             if (order == null || !isOrderValid(order))
                 order = "asc";
-            Long from = Long.parseLong(context.request().getParam("from"));
-            Long to = Long.parseLong(context.request().getParam("to"));
+            long from = Long.parseLong(context.request().getParam("from"));
+            long to = Long.parseLong(context.request().getParam("to"));
             kue.jobRange(from, to, order)
                     .setHandler(resultHandler(context, r -> {
                         String result = new JsonArray(r).encodePrettily();
@@ -292,8 +292,8 @@ public class KueHttpVerticle extends AbstractVerticle {
             if (order == null || !isOrderValid(order)) {
                 order = "asc";
             }
-            Long from = Long.parseLong(context.request().getParam("from"));
-            Long to = Long.parseLong(context.request().getParam("to"));
+            long from = Long.parseLong(context.request().getParam("from"));
+            long to = Long.parseLong(context.request().getParam("to"));
             String state = context.request().getParam("state");
             String type = context.request().getParam("type");
             kue.jobRangeByType(type, state, from, to, order)
@@ -314,8 +314,8 @@ public class KueHttpVerticle extends AbstractVerticle {
             String order = context.request().getParam("order");
             if (order == null || !isOrderValid(order))
                 order = "asc";
-            Long from = Long.parseLong(context.request().getParam("from"));
-            Long to = Long.parseLong(context.request().getParam("to"));
+            long from = Long.parseLong(context.request().getParam("from"));
+            long to = Long.parseLong(context.request().getParam("to"));
             String state = context.request().getParam("state");
             kue.jobRangeByState(state, from, to, order)
                     .setHandler(resultHandler(context, r -> {
@@ -331,7 +331,7 @@ public class KueHttpVerticle extends AbstractVerticle {
     }
 
     private boolean isOrderValid(String order) {
-        return order.equals("asc") && order.equals("desc");
+        return order.equals("asc") || order.equals("desc");
     }
 
     private void apiDeleteJob(RoutingContext context) {

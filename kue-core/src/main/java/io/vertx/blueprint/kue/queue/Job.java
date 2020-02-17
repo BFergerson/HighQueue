@@ -30,7 +30,7 @@ public class Job {
 
     // TODO: refactor the job class.
 
-    private static Logger logger = LoggerFactory.getLogger(Job.class);
+    private static final Logger logger = LoggerFactory.getLogger(Job.class);
 
     private static Vertx vertx;
     private static RedisClient client;
@@ -309,7 +309,7 @@ public class Job {
     @Fluent
     public Future<String> get(String key) {
         Future<String> future = Future.future();
-        client.hget(RedisHelper.getKey("job:" + this.id), key, future.completer());
+        client.hget(RedisHelper.getKey("job:" + this.id), key, future);
         return future;
     }
 

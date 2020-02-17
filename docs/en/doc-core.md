@@ -387,7 +387,7 @@ And these metrics:
 You may have noticed that there are several static fields in `Job` class:
 
 ```java
-private static Logger logger = LoggerFactory.getLogger(Job.class);
+private static final Logger logger = LoggerFactory.getLogger(Job.class);
 
 private static Vertx vertx;
 private static RedisClient client;
@@ -1213,7 +1213,7 @@ import io.vertx.serviceproxy.ProxyHelper;
 
 public class KueVerticle extends AbstractVerticle {
 
-  private static Logger logger = LoggerFactory.getLogger(Job.class);
+  private static final Logger logger = LoggerFactory.getLogger(Job.class);
 
   public static final String EB_JOB_SERVICE_ADDRESS = "vertx.kue.service.job.internal"; // (1)
 

@@ -10,7 +10,6 @@ import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 
-
 /**
  * A callback-based {@link io.vertx.blueprint.kue.Kue} interface for Vert.x Codegen to support polyglot languages.
  *

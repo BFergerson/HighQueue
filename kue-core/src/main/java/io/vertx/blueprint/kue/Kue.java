@@ -229,7 +229,7 @@ public class Kue {
      */
     public Future<Boolean> existsJob(long id) {
         Future<Boolean> future = Future.future();
-        jobService.existsJob(id, future.completer());
+        jobService.existsJob(id, future);
         return future;
     }
 
@@ -241,7 +241,7 @@ public class Kue {
      */
     public Future<JsonArray> getJobLog(long id) {
         Future<JsonArray> future = Future.future();
-        jobService.getJobLog(id, future.completer());
+        jobService.getJobLog(id, future);
         return future;
     }
 
@@ -253,7 +253,7 @@ public class Kue {
      */
     public Future<List<Job>> jobRangeByState(String state, long from, long to, String order) {
         Future<List<Job>> future = Future.future();
-        jobService.jobRangeByState(state, from, to, order, future.completer());
+        jobService.jobRangeByState(state, from, to, order, future);
         return future;
     }
 
@@ -265,7 +265,7 @@ public class Kue {
      */
     public Future<List<Job>> jobRangeByType(String type, String state, long from, long to, String order) {
         Future<List<Job>> future = Future.future();
-        jobService.jobRangeByType(type, state, from, to, order, future.completer());
+        jobService.jobRangeByType(type, state, from, to, order, future);
         return future;
     }
 
@@ -277,7 +277,7 @@ public class Kue {
      */
     public Future<List<Job>> jobRange(long from, long to, String order) {
         Future<List<Job>> future = Future.future();
-        jobService.jobRange(from, to, order, future.completer());
+        jobService.jobRange(from, to, order, future);
         return future;
     }
 
@@ -292,7 +292,7 @@ public class Kue {
      */
     public Future<Long> cardByType(String type, JobState state) {
         Future<Long> future = Future.future();
-        jobService.cardByType(type, state, future.completer());
+        jobService.cardByType(type, state, future);
         return future;
     }
 
@@ -304,7 +304,7 @@ public class Kue {
      */
     public Future<Long> card(JobState state) {
         Future<Long> future = Future.future();
-        jobService.card(state, future.completer());
+        jobService.card(state, future);
         return future;
     }
 
@@ -315,7 +315,7 @@ public class Kue {
      */
     public Future<Long> completeCount(String type) {
         Future<Long> future = Future.future();
-        jobService.completeCount(type, future.completer());
+        jobService.completeCount(type, future);
         return future;
     }
 
@@ -326,7 +326,7 @@ public class Kue {
      */
     public Future<Long> failedCount(String type) {
         Future<Long> future = Future.future();
-        jobService.failedCount(type, future.completer());
+        jobService.failedCount(type, future);
         return future;
     }
 
@@ -337,7 +337,7 @@ public class Kue {
      */
     public Future<Long> inactiveCount(String type) {
         Future<Long> future = Future.future();
-        jobService.inactiveCount(type, future.completer());
+        jobService.inactiveCount(type, future);
         return future;
     }
 
@@ -348,7 +348,7 @@ public class Kue {
      */
     public Future<Long> activeCount(String type) {
         Future<Long> future = Future.future();
-        jobService.activeCount(type, future.completer());
+        jobService.activeCount(type, future);
         return future;
     }
 
@@ -359,7 +359,7 @@ public class Kue {
      */
     public Future<Long> delayedCount(String type) {
         Future<Long> future = Future.future();
-        jobService.delayedCount(type, future.completer());
+        jobService.delayedCount(type, future);
         return future;
     }
 
@@ -370,7 +370,7 @@ public class Kue {
      */
     public Future<List<String>> getAllTypes() {
         Future<List<String>> future = Future.future();
-        jobService.getAllTypes(future.completer());
+        jobService.getAllTypes(future);
         return future;
     }
 
@@ -382,7 +382,7 @@ public class Kue {
      */
     public Future<List<Long>> getIdsByState(JobState state) {
         Future<List<Long>> future = Future.future();
-        jobService.getIdsByState(state, future.completer());
+        jobService.getIdsByState(state, future);
         return future;
     }
 
@@ -393,7 +393,7 @@ public class Kue {
      */
     public Future<Long> getWorkTime() {
         Future<Long> future = Future.future();
-        jobService.getWorkTime(future.completer());
+        jobService.getWorkTime(future);
         return future;
     }
 

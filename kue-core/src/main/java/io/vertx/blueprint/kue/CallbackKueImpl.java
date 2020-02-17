@@ -12,7 +12,6 @@ import io.vertx.core.json.JsonObject;
 
 import java.util.List;
 
-
 /**
  * Implementation of {@link io.vertx.blueprint.kue.CallbackKue}.
  *
