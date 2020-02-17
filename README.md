@@ -1,8 +1,8 @@
 # HighQueue
 
-[![Build Status](https://travis-ci.org/bfergerson/highqueue.svg?branch=master)](https://travis-ci.org/bfergerson/highqueue)
+[![Build Status](https://travis-ci.org/bfergerson/highkue.svg?branch=master)](https://travis-ci.org/bfergerson/highkue)
 
-**HighQueue** is a priority task queue developed with Vert.x and backed by **Redis**.
+**HighKue** is a priority task queue developed with Vert.x and backed by **Redis**.
 It's a Vert.x implementation version of [Automattic/kue](https://github.com/Automattic/kue).
 Fork of the original [sczyh30/vertx-kue](https://github.com/sczyh30/vertx-kue).
 
@@ -13,7 +13,6 @@ todo: doc differences and stuff
 Detailed documents and tutorials:
 
 - [English Version](http://sczyh30.github.io/vertx-kue/kue-core/index.html)
-- [中文文档](http://sczyh30.github.io/vertx-kue/cn/kue-core/index.html)
 
 ## Features
 
