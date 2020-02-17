@@ -22,7 +22,7 @@ todo: doc differences and stuff
 - Polyglot language support
 - Powered by Vert.x!
 
-For the detail of the features, please see [Vert.x Kue Features](docs/en/vertx-kue-features-en.md).
+For the detail of the features, please see [HighKue Features](docs/en/vertx-kue-features-en.md).
 
 ## Build/Run
 
