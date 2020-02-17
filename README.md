@@ -7,12 +7,6 @@ It's a Vert.x implementation version of [Automattic/kue](https://github.com/Auto
 
 todo: doc differences and stuff
 
-## Detailed Document
-
-Detailed documents and tutorials:
-
-- [English Version](http://sczyh30.github.io/vertx-kue/kue-core/index.html)
-
 ## Features
 
 - Job priority
@@ -60,7 +54,7 @@ Then you can visit `http://localhost:8080` to inspect the queue via Kue UI in th
 
 ### Run with Docker Compose
 
-To run Vert.x Kue with Docker Compose:
+To run HighKue with Docker Compose:
 
 ```
 docker-compose up --build
