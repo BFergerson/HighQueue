@@ -312,7 +312,19 @@ public final class JobServiceImpl implements JobService {
     public JobService getAllTypes(Handler<AsyncResult<List<String>>> handler) {
         client.smembers(RedisHelper.getKey("job:types"), r -> {
             if (r.succeeded()) {
-                handler.handle(Future.succeededFuture(new JsonArray(r.result().toString()).getList()));
+                JsonArray result = new JsonArray();
+                r.result().forEach(it -> {
+                    if (it.type() == ResponseType.MULTI) {
+                        JsonArray innerArray = new JsonArray();
+                        it.forEach(it2 -> {
+                            innerArray.add(it2.toString());
+                        });
+                        result.add(innerArray);
+                    } else {
+                        result.add(it.toString());
+                    }
+                });
+                handler.handle(Future.succeededFuture(result.getList()));
             } else {
                 handler.handle(Future.failedFuture(r.cause()));
             }
