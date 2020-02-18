@@ -13,6 +13,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.redis.client.RedisAPI;
+import io.vertx.redis.client.Response;
 import io.vertx.redis.client.ResponseType;
 
 import java.util.*;
@@ -115,7 +116,7 @@ public final class JobServiceImpl implements JobService {
     public JobService getJobLog(long id, Handler<AsyncResult<JsonArray>> handler) {
         client.lrange(RedisHelper.getKey("job:" + id + ":log"), "0", "-1", it -> {
             if (it.succeeded()) {
-                handler.handle(Future.succeededFuture(new JsonArray(it.result().toString())));
+                handler.handle(Future.succeededFuture(toJsonArray(it.result())));
             } else {
                 handler.handle(Future.failedFuture(it.cause()));
             }
@@ -157,19 +158,7 @@ public final class JobServiceImpl implements JobService {
                 if (r.result().size() == 0) { // maybe empty
                     handler.handle(Future.succeededFuture(new ArrayList<>()));
                 } else {
-                    JsonArray result = new JsonArray();
-                    r.result().forEach(it -> {
-                        if (it.type() == ResponseType.MULTI) {
-                            JsonArray innerArray = new JsonArray();
-                            it.forEach(it2 -> {
-                                innerArray.add(it2.toString());
-                            });
-                            result.add(innerArray);
-                        } else {
-                            result.add(it.toString());
-                        }
-                    });
-                    List<Long> list = (List<Long>) result.getList().stream()
+                    List<Long> list = (List<Long>) toJsonArray(r.result()).getList().stream()
                             .map(e -> RedisHelper.numStripFIFO((String) e))
                             .collect(Collectors.toList());
                     list.sort((a1, a2) -> {
@@ -312,19 +301,7 @@ public final class JobServiceImpl implements JobService {
     public JobService getAllTypes(Handler<AsyncResult<List<String>>> handler) {
         client.smembers(RedisHelper.getKey("job:types"), r -> {
             if (r.succeeded()) {
-                JsonArray result = new JsonArray();
-                r.result().forEach(it -> {
-                    if (it.type() == ResponseType.MULTI) {
-                        JsonArray innerArray = new JsonArray();
-                        it.forEach(it2 -> {
-                            innerArray.add(it2.toString());
-                        });
-                        result.add(innerArray);
-                    } else {
-                        result.add(it.toString());
-                    }
-                });
-                handler.handle(Future.succeededFuture(result.getList()));
+                handler.handle(Future.succeededFuture(toJsonArray(r.result()).getList()));
             } else {
                 handler.handle(Future.failedFuture(r.cause()));
             }
@@ -336,19 +313,7 @@ public final class JobServiceImpl implements JobService {
     public JobService getIdsByState(JobState state, Handler<AsyncResult<List<Long>>> handler) {
         client.zrange(Arrays.asList(RedisHelper.getStateKey(state), "0", "-1"), r -> {
             if (r.succeeded()) {
-                JsonArray result = new JsonArray();
-                r.result().forEach(it -> {
-                    if (it.type() == ResponseType.MULTI) {
-                        JsonArray innerArray = new JsonArray();
-                        it.forEach(it2 -> {
-                            innerArray.add(it2.toString());
-                        });
-                        result.add(innerArray);
-                    } else {
-                        result.add(it.toString());
-                    }
-                });
-                List<Long> list = result.stream()
+                List<Long> list = toJsonArray(r.result()).stream()
                         .map(e -> RedisHelper.numStripFIFO((String) e))
                         .collect(Collectors.toList());
                 handler.handle(Future.succeededFuture(list));
@@ -385,6 +350,22 @@ public final class JobServiceImpl implements JobService {
                 key = null;
             }
         }
+        return result;
+    }
+
+    private static JsonArray toJsonArray(Response r) {
+        JsonArray result = new JsonArray();
+        r.forEach(it -> {
+            if (it.type() == ResponseType.MULTI) {
+                JsonArray innerArray = new JsonArray();
+                it.forEach(it2 -> {
+                    innerArray.add(it2.toString());
+                });
+                result.add(innerArray);
+            } else {
+                result.add(it.toString());
+            }
+        });
         return result;
     }
 }
