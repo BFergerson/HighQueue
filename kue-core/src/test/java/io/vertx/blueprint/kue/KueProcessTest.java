@@ -65,6 +65,7 @@ public class KueProcessTest {
             context.assertEquals(Priority.NORMAL, job.getPriority());
             context.assertEquals(JobState.ACTIVE, job.getState());
             context.assertEquals(new JsonObject().put("data", TYPE_DELAYED + ":data"), job.getData());
+            job.done();
 
             kue.getJob(job.getId()).setHandler(it -> {
                 if (it.succeeded()) {
@@ -91,6 +92,7 @@ public class KueProcessTest {
             context.assertEquals(Priority.NORMAL, job.getPriority());
             context.assertEquals(JobState.ACTIVE, job.getState());
             context.assertEquals(new JsonObject().put("data", TYPE + ":data"), job.getData());
+            job.done();
             async.complete();
         });
         kue.createJob(TYPE, new JsonObject().put("data", TYPE + ":data"))
@@ -214,31 +216,26 @@ public class KueProcessTest {
 //        });
 //    }
 
-//    @Test(timeout = 7500)
-//    public void testProcessBlockingCreateJob(TestContext context) {
-//        Async async = context.async(2);
-//        kue.processBlocking(TYPE, 10, job -> {
-//            context.assertEquals(Priority.NORMAL, job.getPriority());
-//            context.assertEquals(JobState.ACTIVE, job.getState());
-//            context.assertEquals(new JsonObject().put("data", TYPE + ":data"), job.getData());
-//            try {
-//                Thread.sleep(5000);
-//            } catch (InterruptedException e) {
-//                e.printStackTrace();
-//            }
-//            async.countDown();
-//        });
-//        kue.createJob(TYPE, new JsonObject().put("data", TYPE + ":data"))
-//                .save().setHandler(it -> {
-//            if (it.failed()) {
-//                context.fail(it.cause());
-//            }
-//        });
-//        kue.createJob(TYPE, new JsonObject().put("data", TYPE + ":data"))
-//                .save().setHandler(it -> {
-//            if (it.failed()) {
-//                context.fail(it.cause());
-//            }
-//        });
-//    }
+    @Test(timeout = 7500)
+    public void testProcessBlockingCreateJob(TestContext context) {
+        Async async = context.async();
+        kue.processBlocking(TYPE, job -> {
+            context.assertEquals(Priority.NORMAL, job.getPriority());
+            context.assertEquals(JobState.ACTIVE, job.getState());
+            context.assertEquals(new JsonObject().put("data", TYPE + ":data"), job.getData());
+            try {
+                Thread.sleep(5000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            job.done();
+            async.complete();
+        });
+        kue.createJob(TYPE, new JsonObject().put("data", TYPE + ":data"))
+                .save().setHandler(it -> {
+            if (it.failed()) {
+                context.fail(it.cause());
+            }
+        });
+    }
 }

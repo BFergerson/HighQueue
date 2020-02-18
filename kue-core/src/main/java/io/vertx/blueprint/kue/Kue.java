@@ -55,7 +55,8 @@ public class Kue {
     }
 
     public Kue(Vertx vertx, JsonObject config, Redis redisClient) {
-        this.vertx = vertx;  this.checkJobPromotion();
+        this.vertx = vertx;
+        this.checkJobPromotion();
         this.checkActiveJobTtl();
         this.config = config;
         this.jobService = JobService.createProxy(vertx, EB_JOB_SERVICE_ADDRESS);
@@ -204,6 +205,18 @@ public class Kue {
         while (n-- > 0) {
             processInternal(type, handler, true);
         }
+        setupTimers();
+        return this;
+    }
+
+    /**
+     * Process a job that may be blocking (once).
+     *
+     * @param type    job type
+     * @param handler job process handler
+     */
+    public Kue processBlocking(String type, Handler<Job> handler) {
+        processInternal(type, handler, true);
         setupTimers();
         return this;
     }
