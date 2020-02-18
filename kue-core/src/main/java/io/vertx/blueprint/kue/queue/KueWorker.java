@@ -2,20 +2,19 @@ package io.vertx.blueprint.kue.queue;
 
 import io.vertx.blueprint.kue.Kue;
 import io.vertx.blueprint.kue.util.RedisHelper;
-import io.vertx.core.AbstractVerticle;
-import io.vertx.core.AsyncResult;
-import io.vertx.core.Future;
-import io.vertx.core.Handler;
+import io.vertx.core.*;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.MessageConsumer;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import io.vertx.redis.client.Redis;
 import io.vertx.redis.client.RedisAPI;
 import io.vertx.redis.client.ResponseType;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Optional;
 
 /**
@@ -28,6 +27,7 @@ public class KueWorker extends AbstractVerticle {
     private static final Logger logger = LoggerFactory.getLogger(KueWorker.class);
 
     private final Kue kue;
+    private Redis localClient;
     private RedisAPI client; // Every worker use different clients.
     private EventBus eventBus;
     private Job job;
@@ -44,11 +44,12 @@ public class KueWorker extends AbstractVerticle {
     }
 
     @Override
-    public void start(Future<Void> startFuture) throws Exception {
+    public void start(Future<Void> startFuture) {
         this.eventBus = vertx.eventBus();
         RedisHelper.client(vertx, config()).connect(it -> {
             if (it.succeeded()) {
-                this.client = RedisAPI.api(it.result());
+                this.localClient = it.result();
+                this.client = RedisAPI.api(localClient);
                 prepareAndStart();
 
                 startFuture.complete();
@@ -63,10 +64,14 @@ public class KueWorker extends AbstractVerticle {
      */
     private void prepareAndStart() {
         cleanup();
+        logger.info("Getting job from backend");
         this.getJobFromBackend().setHandler(jr -> {
             if (jr.succeeded()) {
                 if (jr.result().isPresent()) {
                     this.job = jr.result().get();
+                    this.job.setLocalClient(client);
+
+                    logger.info("Got job from backend. Job id: " + job.getId());
                     process();
                 } else {
                     this.emitJobEvent("error", null, new JsonObject().put("message", "job_not_exist"));
@@ -83,6 +88,8 @@ public class KueWorker extends AbstractVerticle {
      * Process the job.
      */
     private void process() {
+        logger.info("Processing job. Job id: " + job.getId());
+        Context vertxContext = vertx.getOrCreateContext();
         long curTime = System.currentTimeMillis();
         this.job.setStarted_at(curTime)
                 .set("started_at", String.valueOf(curTime))
@@ -96,7 +103,10 @@ public class KueWorker extends AbstractVerticle {
                         logger.debug("KueWorker::process[instance:Verticle(" + this.deploymentID() + ")] with job " + job.getId());
                         // process logic invocation
                         try {
-                            jobHandler.handle(j);
+                            vertxContext.runOnContext(it -> {
+                                logger.info("Executing job user-logic. Job id: " + job.getId());
+                                jobHandler.handle(j);
+                            });
                         } catch (Exception ex) {
                             j.done(ex);
                         }
@@ -154,37 +164,29 @@ public class KueWorker extends AbstractVerticle {
      */
     private Future<Long> zpop(String key) {
         Future<Long> future = Future.future();
-        client.multi(_failure())
-                .zrange(Arrays.asList(key, "0", "0"), _failure())
-                .zremrangebyrank(key, "0", "0", _failure())
-                .exec(r -> {
-                    if (r.succeeded()) {
-                        JsonArray res = new JsonArray();
-                        r.result().forEach(it -> {
-                            if (it.type() == ResponseType.MULTI) {
-                                JsonArray innerArray = new JsonArray();
-                                it.forEach(it2 -> {
-                                    innerArray.add(it2.toString());
-                                });
-                                res.add(innerArray);
-                            } else {
-                                res.add(it.toString());
-                            }
+        client.zpopmin(Collections.singletonList(key), r -> {
+            if (r.succeeded()) {
+                JsonArray res = new JsonArray();
+                r.result().forEach(it -> {
+                    if (it.type() == ResponseType.MULTI) {
+                        JsonArray innerArray = new JsonArray();
+                        it.forEach(it2 -> {
+                            innerArray.add(it2.toString());
                         });
-                        if (res.getJsonArray(0).size() == 0) // empty set
-                            future.fail(new IllegalStateException("Empty zpop set"));
-                        else {
-                            try {
-                                future.complete(Long.parseLong(RedisHelper.stripFIFO(
-                                        res.getJsonArray(0).getString(0))));
-                            } catch (Exception ex) {
-                                future.fail(ex);
-                            }
-                        }
+                        res.add(innerArray);
                     } else {
-                        future.fail(r.cause());
+                        res.add(it.toString());
                     }
                 });
+                try {
+                    future.complete(Long.parseLong(RedisHelper.stripFIFO(res.getString(0))));
+                } catch (Exception ex) {
+                    future.fail(ex);
+                }
+            } else {
+                future.fail(r.cause());
+            }
+        });
         return future;
     }
 
@@ -250,7 +252,7 @@ public class KueWorker extends AbstractVerticle {
     }
 
     @Override
-    public void stop() throws Exception {
+    public void stop() {
         // stop hook
         cleanup();
     }
@@ -281,11 +283,10 @@ public class KueWorker extends AbstractVerticle {
         }
     }
 
-    private static <T> Handler<AsyncResult<T>> _failure() {
-        return r -> {
-            if (r.failed())
-                r.cause().printStackTrace();
-        };
-    }
-
+//    private static <T> Handler<AsyncResult<T>> _failure() {
+//        return r -> {
+//            if (r.failed())
+//                r.cause().printStackTrace();
+//        };
+//    }
 }

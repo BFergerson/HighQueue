@@ -33,6 +33,7 @@ public class Job {
 
     private static Vertx vertx;
     private static RedisAPI client;
+    private RedisAPI localClient;
     private static JsonObject config;
     private static EventBus eventBus;
 
@@ -130,6 +131,14 @@ public class Job {
         _checkStatic();
     }
 
+    protected void setLocalClient(RedisAPI localClient) {
+        this.localClient = localClient;
+    }
+
+    private RedisAPI getClient() {
+        return localClient != null ? localClient : client;
+    }
+
     public JsonObject toJson() {
         JsonObject json = new JsonObject();
         JobConverter.toJson(this, json);
@@ -161,38 +170,39 @@ public class Job {
      * @return async result of this job
      */
     public Future<Job> state(JobState newState) {
-        Future<Job> future = Future.future();
         JobState oldState = this.state;
-        logger.debug("Job::state(from: " + oldState + ", to:" + newState.name() + ")");
-        client.multi(r0 -> {
+        logger.debug("Job::state(from: " + oldState + ", to:" + newState.name() + ") - Id: " + getId());
+
+        Future<Job> future = Future.future();
+        getClient().multi(r0 -> {
             if (r0.succeeded()) {
                 if (oldState != null && !oldState.equals(newState)) {
-                    client.zrem(Arrays.asList(RedisHelper.getStateKey(oldState), this.zid), _failure())
+                    getClient().zrem(Arrays.asList(RedisHelper.getStateKey(oldState), this.zid), _failure())
                             .zrem(Arrays.asList(RedisHelper.getKey("jobs:" + this.type + ":" + oldState.name()), this.zid), _failure());
                 }
-                client.hset(Arrays.asList(RedisHelper.getKey("job:" + this.id), "state", newState.name()), _failure())
+                getClient().hset(Arrays.asList(RedisHelper.getKey("job:" + this.id), "state", newState.name()), _failure())
                         .zadd(Arrays.asList(RedisHelper.getKey("jobs:" + newState.name()), String.valueOf(this.priority.getValue()), this.zid), _failure())
                         .zadd(Arrays.asList(RedisHelper.getKey("jobs:" + this.type + ":" + newState.name()), String.valueOf(this.priority.getValue()), this.zid), _failure());
 
                 switch (newState) { // dispatch different state
                     case ACTIVE:
-                        client.zadd(Arrays.asList(RedisHelper.getKey("jobs:" + newState.name()),
+                        getClient().zadd(Arrays.asList(RedisHelper.getKey("jobs:" + newState.name()),
                                 String.valueOf(this.priority.getValue() < 0 ? this.priority.getValue() : -this.priority.getValue()),
                                 this.zid), _failure());
                         break;
                     case DELAYED:
-                        client.zadd(Arrays.asList(RedisHelper.getKey("jobs:" + newState.name()),
+                        getClient().zadd(Arrays.asList(RedisHelper.getKey("jobs:" + newState.name()),
                                 String.valueOf(this.promote_at), this.zid), _failure());
                         break;
                     case INACTIVE:
-                        client.lpush(Arrays.asList(RedisHelper.getKey(this.type + ":jobs"), "1"), _failure());
+                        getClient().lpush(Arrays.asList(RedisHelper.getKey(this.type + ":jobs"), "1"), _failure());
                         break;
                     default:
                 }
 
                 this.state = newState;
 
-                client.exec(r -> {
+                getClient().exec(r -> {
                     if (r.succeeded()) {
                         future.complete(this);
                     } else {
@@ -264,7 +274,7 @@ public class Job {
      */
     public Future<Job> log(String msg) {
         Future<Job> future = Future.future();
-        client.rpush(Arrays.asList(RedisHelper.getKey("job:" + this.id + ":log"), msg), _completer(future, this));
+        getClient().rpush(Arrays.asList(RedisHelper.getKey("job:" + this.id + ":log"), msg), _completer(future, this));
         return future.compose(Job::updateNow);
     }
 
@@ -290,7 +300,7 @@ public class Job {
      */
     public Future<Job> set(String key, String value) {
         Future<Job> future = Future.future();
-        client.hset(Arrays.asList(RedisHelper.getKey("job:" + this.id), key, value), r -> {
+        getClient().hset(Arrays.asList(RedisHelper.getKey("job:" + this.id), key, value), r -> {
             if (r.succeeded())
                 future.complete(this);
             else
@@ -308,7 +318,7 @@ public class Job {
     @Fluent
     public Future<String> get(String key) {
         Future<String> future = Future.future();
-        client.hget(RedisHelper.getKey("job:" + this.id), key, it -> {
+        getClient().hget(RedisHelper.getKey("job:" + this.id), key, it -> {
             if (it.succeeded()) {
                 future.complete(it.result().toString());
             } else {
@@ -360,7 +370,7 @@ public class Job {
         Future<Job> future = Future.future();
         String key = RedisHelper.getKey("job:" + this.id);
         if (this.attempts < this.max_attempts) {
-            client.hincrby(key, "attempts", "1", r -> {
+            getClient().hincrby(key, "attempts", "1", r -> {
                 if (r.succeeded()) {
                     this.attempts = r.result().toInteger();
                     future.complete(this);
@@ -410,7 +420,7 @@ public class Job {
     Future<Job> refreshTtl() {
         Future<Job> future = Future.future();
         if (this.state == JobState.ACTIVE && this.ttl > 0) {
-            client.zadd(Arrays.asList(RedisHelper.getStateKey(this.state),
+            getClient().zadd(Arrays.asList(RedisHelper.getStateKey(this.state),
                     String.valueOf(System.currentTimeMillis() + ttl), this.zid), _completer(future, this));
         }
         return future;
@@ -429,7 +439,7 @@ public class Job {
         Future<Job> future = Future.future();
 
         // generate id
-        client.incr(RedisHelper.getKey("ids"), res -> {
+        getClient().incr(RedisHelper.getKey("ids"), res -> {
             if (res.succeeded()) {
                 this.id = res.result().toLong();
                 this.zid = RedisHelper.createFIFO(id);
@@ -438,7 +448,7 @@ public class Job {
                 if (this.delay > 0) {
                     this.state = JobState.DELAYED;
                 }
-                client.sadd(Arrays.asList(RedisHelper.getKey("job:types"), this.type), _failure());
+                getClient().sadd(Arrays.asList(RedisHelper.getKey("job:types"), this.type), _failure());
                 this.created_at = System.currentTimeMillis();
                 this.promote_at = this.created_at + this.delay;
                 // save job
@@ -448,7 +458,7 @@ public class Job {
                     hmsetArgs.add(key1);
                     hmsetArgs.add(value.toString());
                 });
-                client.hmset(hmsetArgs, _completer(future, this));
+                getClient().hmset(hmsetArgs, _completer(future, this));
             } else {
                 future.fail(res.cause());
             }
@@ -479,7 +489,7 @@ public class Job {
             hmsetArgs.add(value.toString());
         });
 
-        client.multi(_failure())
+        getClient().multi(_failure())
                 .hmset(hmsetArgs, _failure())
                 .zadd(Arrays.asList(RedisHelper.getKey("jobs"), String.valueOf(this.priority.getValue()), this.zid), _failure())
                 .exec(_completer(future, this));
@@ -495,7 +505,7 @@ public class Job {
      */
     public Future<Void> remove() {
         Future<Void> future = Future.future();
-        client.multi(_failure())
+        getClient().multi(_failure())
                 .zrem(Arrays.asList(RedisHelper.getKey("jobs:" + this.stateName()), this.zid), _failure())
                 .zrem(Arrays.asList(RedisHelper.getKey("jobs:" + this.type + ":" + this.stateName()), this.zid), _failure())
                 .zrem(Arrays.asList(RedisHelper.getKey("jobs"), this.zid), _failure())

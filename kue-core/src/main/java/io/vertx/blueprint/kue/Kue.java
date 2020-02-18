@@ -130,12 +130,14 @@ public class Kue {
     }
 
     private void processInternal(String type, Handler<Job> handler, boolean isWorker) {
+        logger.debug(String.format("Deploying KueWorker. Job type: %s - Worker: %s", type, isWorker));
         KueWorker worker = new KueWorker(type, handler, this);
         DeploymentOptions options = new DeploymentOptions();
         options.setWorker(isWorker);
         options.setConfig(config);
         vertx.deployVerticle(worker, options, r0 -> {
             if (r0.succeeded()) {
+                logger.debug(String.format("Deployed new KueWorker. Job type: %s - Worker: %s", type, isWorker));
                 this.on("job_complete", msg -> {
                     long dur = new Job(((JsonObject) msg.body()).getJsonObject("job")).getDuration();
                     redisAPI.incrby(RedisHelper.getKey("stats:work-time"), Long.toString(dur), r1 -> {
