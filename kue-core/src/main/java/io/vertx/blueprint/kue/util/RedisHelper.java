@@ -2,10 +2,13 @@ package io.vertx.blueprint.kue.util;
 
 import io.vertx.blueprint.kue.queue.JobState;
 import io.vertx.core.Vertx;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.SocketAddress;
 import io.vertx.redis.client.Redis;
 import io.vertx.redis.client.RedisOptions;
+import io.vertx.redis.client.Response;
+import io.vertx.redis.client.ResponseType;
 
 /**
  * Helper class for operating Redis.
@@ -93,5 +96,21 @@ public final class RedisHelper {
      */
     public static long numStripFIFO(String zid) {
         return Long.parseLong(zid.substring(zid.indexOf('|') + 1));
+    }
+
+    public static JsonArray toJsonArray(Response r) {
+        JsonArray result = new JsonArray();
+        r.forEach(it -> {
+            if (it.type() == ResponseType.MULTI) {
+                JsonArray innerArray = new JsonArray();
+                it.forEach(it2 -> {
+                    innerArray.add(it2.toString());
+                });
+                result.add(innerArray);
+            } else {
+                result.add(it.toString());
+            }
+        });
+        return result;
     }
 }
