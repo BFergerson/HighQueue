@@ -36,6 +36,16 @@ configure(allprojects) { project ->
     targetCompatibility = 1.8
     sourceCompatibility = 1.8
   }
+
+  test {
+    testLogging {
+      events "passed", "skipped", "failed"
+      setExceptionFormat("full")
+
+      outputs.upToDateWhen { false }
+      showStandardStreams = true
+    }
+  }
 }
 
 project("kue-core") {
