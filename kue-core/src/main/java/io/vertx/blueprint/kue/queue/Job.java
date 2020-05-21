@@ -7,13 +7,14 @@ import io.vertx.codegen.annotations.Fluent;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
-import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import io.vertx.redis.client.Command;
 import io.vertx.redis.client.RedisAPI;
+import io.vertx.redis.client.Request;
 
 import java.util.*;
 import java.util.function.Function;
@@ -31,17 +32,17 @@ public class Job {
 
     private static final Logger logger = LoggerFactory.getLogger(Job.class);
 
-    private static Vertx vertx;
+    private static Kue kue;
     private static RedisAPI client;
     private RedisAPI localClient;
     private static JsonObject config;
     private static EventBus eventBus;
 
-    public static void setVertx(Vertx v, RedisAPI redisClient, JsonObject redisConfig) {
-        vertx = v;
+    public static void setKue(Kue kue, RedisAPI redisClient, JsonObject redisConfig) {
+        Job.kue = kue;
         client = redisClient;
         config = redisConfig;
-        eventBus = vertx.eventBus();
+        eventBus = kue.getVertx().eventBus();
     }
 
     // job properties
@@ -146,8 +147,8 @@ public class Job {
     }
 
     private void _checkStatic() {
-        if (vertx == null) {
-            logger.warn("static Vertx instance in Job class is not initialized!");
+        if (kue == null) {
+            logger.warn("static Kue instance in Job class is not initialized!");
         }
     }
 
@@ -173,44 +174,60 @@ public class Job {
         JobState oldState = this.state;
         logger.debug("Job::state(from: " + oldState + ", to:" + newState.name() + ") - Id: " + getId());
 
+        List<Request> commandRequests = new ArrayList<>();
         Future<Job> future = Future.future();
-        getClient().multi(r0 -> {
-            if (r0.succeeded()) {
-                if (oldState != null && !oldState.equals(newState)) {
-                    getClient().zrem(Arrays.asList(RedisHelper.getStateKey(oldState), this.zid), _failure())
-                            .zrem(Arrays.asList(RedisHelper.getKey("jobs:" + this.type + ":" + oldState.name()), this.zid), _failure());
-                }
-                getClient().hset(Arrays.asList(RedisHelper.getKey("job:" + this.id), "state", newState.name()), _failure())
-                        .zadd(Arrays.asList(RedisHelper.getKey("jobs:" + newState.name()), String.valueOf(this.priority.getValue()), this.zid), _failure())
-                        .zadd(Arrays.asList(RedisHelper.getKey("jobs:" + this.type + ":" + newState.name()), String.valueOf(this.priority.getValue()), this.zid), _failure());
+        if (oldState != null && !oldState.equals(newState)) {
+            commandRequests.add(Request.cmd(Command.ZREM)
+                    .arg(RedisHelper.getStateKey(oldState))
+                    .arg(this.zid));
+            commandRequests.add(Request.cmd(Command.ZREM)
+                    .arg(RedisHelper.getKey("jobs:" + this.type + ":" + oldState.name()))
+                    .arg(this.zid));
+        }
 
-                switch (newState) { // dispatch different state
-                    case ACTIVE:
-                        getClient().zadd(Arrays.asList(RedisHelper.getKey("jobs:" + newState.name()),
-                                String.valueOf(this.priority.getValue() < 0 ? this.priority.getValue() : -this.priority.getValue()),
-                                this.zid), _failure());
-                        break;
-                    case DELAYED:
-                        getClient().zadd(Arrays.asList(RedisHelper.getKey("jobs:" + newState.name()),
-                                String.valueOf(this.promote_at), this.zid), _failure());
-                        break;
-                    case INACTIVE:
-                        getClient().lpush(Arrays.asList(RedisHelper.getKey(this.type + ":jobs"), "1"), _failure());
-                        break;
-                    default:
-                }
+        commandRequests.add(Request.cmd(Command.HSET)
+                .arg(RedisHelper.getKey("job:" + this.id))
+                .arg("state")
+                .arg(newState.name()));
+        commandRequests.add(Request.cmd(Command.ZADD)
+                .arg(RedisHelper.getKey("jobs:" + newState.name()))
+                .arg(String.valueOf(this.priority.getValue()))
+                .arg(this.zid));
+        commandRequests.add(Request.cmd(Command.ZADD)
+                .arg(RedisHelper.getKey("jobs:" + this.type + ":" + newState.name()))
+                .arg(String.valueOf(this.priority.getValue()))
+                .arg(this.zid));
 
-                this.state = newState;
+        switch (newState) { // dispatch different state
+            case ACTIVE:
+                commandRequests.add(Request.cmd(Command.ZADD)
+                        .arg(RedisHelper.getKey("jobs:" + newState.name()))
+                        .arg(String.valueOf(this.priority.getValue() < 0 ? this.priority.getValue() : -this.priority.getValue()))
+                        .arg(this.zid));
+                break;
+            case DELAYED:
+                commandRequests.add(Request.cmd(Command.ZADD)
+                        .arg(RedisHelper.getKey("jobs:" + newState.name()))
+                        .arg(String.valueOf(this.promote_at))
+                        .arg(this.zid));
+                break;
+            case INACTIVE:
+                commandRequests.add(Request.cmd(Command.LPUSH)
+                        .arg(RedisHelper.getKey(this.type + ":jobs"))
+                        .arg("1"));
+                break;
+            default:
+        }
 
-                getClient().exec(r -> {
-                    if (r.succeeded()) {
-                        future.complete(this);
-                    } else {
-                        future.fail(r.cause());
-                    }
-                });
+        this.state = newState;
+
+        kue.getClient().batch(commandRequests, r -> {
+            if (r.succeeded()) {
+                logger.debug("Successfully updated Job::state(from: " + oldState + ", to:" + newState.name() + ") - Id: " + getId());
+                future.complete(this);
             } else {
-                future.fail(r0.cause());
+                logger.error("Failed to updated Job::state(from: " + oldState + ", to:" + newState.name() + ") - Id: " + getId());
+                future.fail(r.cause());
             }
         });
 
@@ -299,12 +316,16 @@ public class Job {
      * @param value value
      */
     public Future<Job> set(String key, String value) {
+        logger.debug(String.format("Setting %s to %s", key, value));
         Future<Job> future = Future.future();
         getClient().hset(Arrays.asList(RedisHelper.getKey("job:" + this.id), key, value), r -> {
-            if (r.succeeded())
+            if (r.succeeded()) {
+                logger.debug(String.format("Set %s to %s", key, value));
                 future.complete(this);
-            else
+            } else {
+                logger.error(String.format("Failed to set %s to %s", key, value));
                 future.fail(r.cause());
+            }
         });
         return future;
     }
@@ -391,7 +412,7 @@ public class Job {
         if (remaining > 0) {
             return this.attemptAdd()
                     .compose(Job::reattempt)
-                    .setHandler(r -> {
+                    .onComplete(r -> {
                         if (r.failed()) {
                             this.emitError(r.cause());
                         }
@@ -482,22 +503,23 @@ public class Job {
         Future<Job> future = Future.future();
         this.updated_at = System.currentTimeMillis();
 
-        List<String> hmsetArgs = new ArrayList<>();
-        hmsetArgs.add(RedisHelper.getKey("job:" + this.id));
+        List<Request> commandRequests = new ArrayList<>();
+        Request hmSetRequest = Request.cmd(Command.HMSET)
+                .arg(RedisHelper.getKey("job:" + this.id));
         this.toJson().getMap().forEach((key1, value) -> {
-            hmsetArgs.add(key1);
-            hmsetArgs.add(value.toString());
+            hmSetRequest.arg(key1);
+            hmSetRequest.arg(value.toString());
         });
-
-        getClient().multi(_failure())
-                .hmset(hmsetArgs, _failure())
-                .zadd(Arrays.asList(RedisHelper.getKey("jobs"), String.valueOf(this.priority.getValue()), this.zid), _failure())
-                .exec(_completer(future, this));
+        commandRequests.add(hmSetRequest);
+        commandRequests.add(Request.cmd(Command.ZADD)
+                .arg(RedisHelper.getKey("jobs"))
+                .arg(String.valueOf(this.priority.getValue()))
+                .arg(this.zid));
+        kue.getClient().batch(commandRequests, _completer(future, this));
 
         // TODO: add search functionality (full-index engine, for Chinese language this is difficult)
 
-        return future.compose(r ->
-                this.state(this.state));
+        return future.compose(r -> this.state(this.state));
     }
 
     /**
@@ -505,20 +527,28 @@ public class Job {
      */
     public Future<Void> remove() {
         Future<Void> future = Future.future();
-        getClient().multi(_failure())
-                .zrem(Arrays.asList(RedisHelper.getKey("jobs:" + this.stateName()), this.zid), _failure())
-                .zrem(Arrays.asList(RedisHelper.getKey("jobs:" + this.type + ":" + this.stateName()), this.zid), _failure())
-                .zrem(Arrays.asList(RedisHelper.getKey("jobs"), this.zid), _failure())
-                .del(Collections.singletonList(RedisHelper.getKey("job:" + this.id + ":log")), _failure())
-                .del(Collections.singletonList(RedisHelper.getKey("job:" + this.id)), _failure())
-                .exec(r -> {
-                    if (r.succeeded()) {
-                        this.emit("remove", new JsonObject().put("id", this.id));
-                        future.complete();
-                    } else {
-                        future.fail(r.cause());
-                    }
-                });
+        List<Request> commandRequests = new ArrayList<>();
+        commandRequests.add(Request.cmd(Command.ZREM)
+                .arg(RedisHelper.getKey("jobs:" + this.stateName()))
+                .arg(this.zid));
+        commandRequests.add(Request.cmd(Command.ZREM)
+                .arg(RedisHelper.getKey("jobs:" + this.type + ":" + this.stateName()))
+                .arg(this.zid));
+        commandRequests.add(Request.cmd(Command.ZREM)
+                .arg(RedisHelper.getKey("jobs"))
+                .arg(this.zid));
+        commandRequests.add(Request.cmd(Command.DEL)
+                .arg(RedisHelper.getKey("job:" + this.id + ":log")));
+        commandRequests.add(Request.cmd(Command.DEL)
+                .arg(RedisHelper.getKey("job:" + this.id)));
+        kue.getClient().batch(commandRequests, r -> {
+            if (r.succeeded()) {
+                this.emit("remove", new JsonObject().put("id", this.id));
+                future.complete();
+            } else {
+                future.fail(r.cause());
+            }
+        });
         return future;
     }
 
@@ -867,16 +897,17 @@ public class Job {
      */
     private static <T> Handler<AsyncResult<T>> _failure() {
         return r -> {
-            if (r.failed())
+            if (r.failed()) {
                 r.cause().printStackTrace();
+            }
         };
     }
 
     private static <T, R> Handler<AsyncResult<T>> _completer(Future<R> future, R result) {
         return r -> {
-            if (r.failed())
+            if (r.failed()) {
                 future.fail(r.cause());
-            else
+            } else
                 future.complete(result);
         };
     }

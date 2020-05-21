@@ -891,7 +891,7 @@ private Future<Job> attemptInternal() {
   if (remaining > 0) { // has remaining
     return this.attemptAdd() // (2)
       .compose(Job::reattempt) // (3)
-      .setHandler(r -> {
+      .onComplete(r -> {
         if (r.failed()) {
           this.emitError(r.cause()); // (4)
         }
@@ -1367,7 +1367,7 @@ private void checkJobPromotion() {
           r.result().forEach(r1 -> {
             long id = Long.parseLong(RedisHelper.stripFIFO((String) r1));
             this.getJob(id).compose(jr -> jr.get().inactive())  // (5)
-              .setHandler(jr -> {
+              .onComplete(jr -> {
                 if (jr.succeeded()) {
                   jr.result().emit("promotion", jr.result().getId()); // (6)
                 } else {
@@ -1418,7 +1418,7 @@ In `KueWorker`, we use `prepareAndStart()` to prepare job and start processing p
 
 ```java
 private void prepareAndStart() {
-  this.getJobFromBackend().setHandler(jr -> { // (1)
+  this.getJobFromBackend().onComplete(jr -> { // (1)
     if (jr.succeeded()) {
       if (jr.result().isPresent()) {
         this.job = jr.result().get(); // (2)
@@ -1453,7 +1453,7 @@ private Future<Optional<Job>> getJobFromBackend() {
     } else {
       this.zpop(RedisHelper.getKey("jobs:" + this.type + ":INACTIVE")) // (2)
         .compose(kue::getJob) // (3)
-        .setHandler(r -> {
+        .onComplete(r -> {
           if (r.succeeded()) {
             future.complete(r.result());
           } else
@@ -1511,7 +1511,7 @@ private void process() {
   this.job.setStarted_at(curTime)
     .set("started_at", String.valueOf(curTime)) // (1) set start time
     .compose(Job::active) // (2) set the job state to ACTIVE
-    .setHandler(r -> {
+    .onComplete(r -> {
       if (r.succeeded()) {
         Job j = r.result();
         // emit start event
@@ -1561,7 +1561,7 @@ private Handler<AsyncResult<JsonObject>> createDoneCallback(Job job) {
         .set("result", result.encodePrettily()); // (3)
     }
 
-    job.complete().setHandler(r -> { // (4)
+    job.complete().onComplete(r -> { // (4)
       if (r.succeeded()) {
         Job j = r.result();
         if (j.isRemoveOnComplete()) { // (5)
@@ -1584,7 +1584,7 @@ If the job failed, we call `fail` method in `KueWorker`:
 
 ```java
 private void fail(Throwable ex) {
-  job.failedAttempt(ex).setHandler(r -> { // (1)
+  job.failedAttempt(ex).onComplete(r -> { // (1)
     if (r.failed()) {
       this.error(r.cause(), job); // (2)
     } else {
@@ -1683,7 +1683,7 @@ public class LearningVertxVerticle extends AbstractVerticle {
       });
 
     // save the job
-    j.save().setHandler(r0 -> {
+    j.save().onComplete(r0 -> {
       if (r0.succeeded()) {
         // start learning!
         kue.processBlocking("learn vertx", 1, job -> {

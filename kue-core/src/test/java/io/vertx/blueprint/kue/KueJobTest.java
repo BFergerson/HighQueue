@@ -56,9 +56,9 @@ public class KueJobTest {
     public void testGetAllTypes(TestContext context) {
         Async async = context.async();
         kue.createJob(TYPE, new JsonObject().put("data", TYPE + ":data"))
-                .save().setHandler(it -> {
+                .save().onComplete(it -> {
             if (it.succeeded()) {
-                kue.getAllTypes().setHandler(it2 -> {
+                kue.getAllTypes().onComplete(it2 -> {
                     if (it2.succeeded()) {
                         context.assertEquals(1, it2.result().size());
                         context.assertEquals(TYPE, it2.result().get(0));
@@ -77,11 +77,11 @@ public class KueJobTest {
     public void testGetJobLog(TestContext context) {
         Async async = context.async();
         kue.createJob(TYPE, new JsonObject().put("data", TYPE + ":data"))
-                .save().setHandler(it -> {
+                .save().onComplete(it -> {
             if (it.succeeded()) {
-                it.result().log("Hello world").setHandler(it2 -> {
+                it.result().log("Hello world").onComplete(it2 -> {
                     if (it2.succeeded()) {
-                        kue.getJobLog(it.result().getId()).setHandler(it3 -> {
+                        kue.getJobLog(it.result().getId()).onComplete(it3 -> {
                             if (it3.succeeded()) {
                                 context.assertEquals(1, it3.result().size());
                                 context.assertEquals("Hello world", it3.result().getString(0));

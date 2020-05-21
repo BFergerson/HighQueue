@@ -2,6 +2,7 @@ package io.vertx.blueprint.kue.queue;
 
 import io.vertx.blueprint.kue.Kue;
 import io.vertx.blueprint.kue.service.JobService;
+import io.vertx.blueprint.kue.service.impl.JobServiceImpl;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
@@ -34,7 +35,7 @@ public class KueVerticle extends AbstractVerticle {
     @Override
     public void start(Future<Void> future) {
         this.config = config();
-        this.jobService = JobService.create(vertx, config, kue.getRedisAPI());
+        this.jobService = new JobServiceImpl(kue, config, kue.getRedisAPI());
         kue.getClient().connect(it -> {
             if (it.succeeded()) {
                 testConnection(future);
@@ -42,6 +43,14 @@ public class KueVerticle extends AbstractVerticle {
                 future.fail(it.cause());
             }
         });
+    }
+
+    @Override
+    public void stop() {
+        logger.debug("Closing Kue");
+        kue.setClosed(true);
+        kue.getClient().close();
+        logger.info("Closed Kue");
     }
 
     private void testConnection(Future<Void> future) {

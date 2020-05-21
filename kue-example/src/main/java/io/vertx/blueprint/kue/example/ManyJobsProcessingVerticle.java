@@ -22,7 +22,7 @@ public class ManyJobsProcessingVerticle extends AbstractVerticle {
         // create our job queue
         kue = Kue.createQueue(vertx, config());
 
-        create().setHandler(r0 -> {
+        create().onComplete(r0 -> {
             if (r0.succeeded()) {
                 // process logic start (6 at a time)
                 kue.process("video conversion", 6, job -> {

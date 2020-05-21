@@ -40,7 +40,7 @@ public class LearningVertxVerticle extends AbstractVerticle {
                 });
 
         // save the job
-        j.save().setHandler(r0 -> {
+        j.save().onComplete(r0 -> {
             if (r0.succeeded()) {
                 // start learning!
                 kue.processBlocking("learn vertx", 1, job -> {

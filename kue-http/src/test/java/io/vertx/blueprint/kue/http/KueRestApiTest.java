@@ -41,7 +41,7 @@ public class KueRestApiTest {
                 kue = Kue.createQueue(vertx, new JsonObject());
                 vertx.deployVerticle(new KueVerticle(kue), r2 -> {
                     if (r2.succeeded()) {
-                        kue.jobRangeByType(TYPE, "inactive", 0, 100, "asc").setHandler(r1 -> {
+                        kue.jobRangeByType(TYPE, "inactive", 0, 100, "asc").onComplete(r1 -> {
                             if (r1.succeeded()) {
                                 r1.result().forEach(Job::remove);
                                 vertx.deployVerticle(new KueHttpVerticle(), r3 -> {
@@ -117,7 +117,7 @@ public class KueRestApiTest {
         Async async = context.async();
         kue.createJob(TYPE, new JsonObject().put("data", TYPE + ":data"))
                 .save()
-                .setHandler(jr -> {
+                .onComplete(jr -> {
                     if (jr.succeeded()) {
                         long id = jr.result().getId();
                         client.getNow(PORT, HOST, "/job/" + id, response -> response.bodyHandler(body -> {

@@ -4,7 +4,6 @@ import io.vertx.blueprint.kue.queue.JobState;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import io.vertx.core.net.SocketAddress;
 import io.vertx.redis.client.Redis;
 import io.vertx.redis.client.RedisOptions;
 import io.vertx.redis.client.Response;
@@ -40,11 +39,15 @@ public final class RedisHelper {
      * @return the new configuration instance
      */
     public static RedisOptions options(JsonObject config) {
+        String redisAuth = config.getString("redis.auth", "");
+        if (!redisAuth.isEmpty()) {
+            redisAuth += "@";
+        }
         return new RedisOptions()
-                .setEndpoint(SocketAddress.inetSocketAddress(
-                        config.getInteger("redis.port", 6379),
-                        config.getString("redis.host", "127.0.0.1"))
-                ).setPassword(config.getString("redis.auth", null));
+                .addConnectionString(String.format("redis://%s%s:%d",
+                        redisAuth,
+                        config.getString("redis.host", "127.0.0.1"),
+                        config.getInteger("redis.port", 6379)));
     }
 
     /**

@@ -9,8 +9,8 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import io.vertx.redis.client.Redis;
 import io.vertx.redis.client.RedisAPI;
+import io.vertx.redis.client.RedisConnection;
 import io.vertx.redis.client.ResponseType;
 
 import java.util.Arrays;
@@ -27,7 +27,7 @@ public class KueWorker extends AbstractVerticle {
     private static final Logger logger = LoggerFactory.getLogger(KueWorker.class);
 
     private final Kue kue;
-    private Redis localClient;
+    private RedisConnection localClient; //todo: remove?
     private RedisAPI client; // Every worker use different clients.
     private EventBus eventBus;
     private Job job;
@@ -65,7 +65,7 @@ public class KueWorker extends AbstractVerticle {
     private void prepareAndStart() {
         cleanup();
         logger.info("Getting job from backend");
-        this.getJobFromBackend().setHandler(jr -> {
+        this.getJobFromBackend().onComplete(jr -> {
             if (jr.succeeded()) {
                 if (jr.result().isPresent()) {
                     this.job = jr.result().get();
@@ -94,7 +94,7 @@ public class KueWorker extends AbstractVerticle {
         this.job.setStarted_at(curTime)
                 .set("started_at", String.valueOf(curTime))
                 .compose(Job::active)
-                .setHandler(r -> {
+                .onComplete(r -> {
                     if (r.succeeded()) {
                         Job j = r.result();
                         // emit start event
@@ -138,7 +138,7 @@ public class KueWorker extends AbstractVerticle {
     }
 
     private void fail(Throwable ex) {
-        job.failedAttempt(ex).setHandler(r -> {
+        job.failedAttempt(ex).onComplete(r -> {
             if (r.failed()) {
                 this.error(r.cause(), job);
 
@@ -200,18 +200,23 @@ public class KueWorker extends AbstractVerticle {
         Future<Optional<Job>> future = Future.future();
         client.blpop(Arrays.asList(RedisHelper.getKey(this.type + ":jobs"), "0"), r1 -> {
             if (r1.failed()) {
-                client.lpush(Arrays.asList(RedisHelper.getKey(this.type + ":jobs"), "1"), r2 -> {
-                    if (r2.failed())
-                        future.fail(r2.cause());
-                });
+                if (!kue.isClosed()) {
+                    client.lpush(Arrays.asList(RedisHelper.getKey(this.type + ":jobs"), "1"), r2 -> {
+                        if (r2.failed())
+                            future.fail(r2.cause());
+                    });
+                }
             } else {
                 this.zpop(RedisHelper.getKey("jobs:" + this.type + ":INACTIVE"))
                         .compose(kue::getJob)
-                        .setHandler(r -> {
+                        .onComplete(r -> {
                             if (r.succeeded()) {
+                                logger.debug("Successfully fetched job from backend");
                                 future.complete(r.result());
-                            } else
+                            } else {
+                                logger.error("Failed to fetch job from backend", r.cause());
                                 future.fail(r.cause());
+                            }
                         });
             }
         });
@@ -237,7 +242,7 @@ public class KueWorker extends AbstractVerticle {
                         .set("result", result.encodePrettily());
             }
 
-            job.complete().setHandler(r -> {
+            job.complete().onComplete(r -> {
                 if (r.succeeded()) {
                     Job j = r.result();
                     if (j.isRemoveOnComplete()) {

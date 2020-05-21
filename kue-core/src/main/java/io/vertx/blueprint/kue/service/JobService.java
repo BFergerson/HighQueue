@@ -1,5 +1,6 @@
 package io.vertx.blueprint.kue.service;
 
+import io.vertx.blueprint.kue.Kue;
 import io.vertx.blueprint.kue.queue.Job;
 import io.vertx.blueprint.kue.queue.JobState;
 import io.vertx.blueprint.kue.service.impl.JobServiceImpl;
@@ -36,9 +37,9 @@ public interface JobService {
 //    return new JobServiceImpl(vertx, config);
 //  }
 
-    static JobService create(Vertx vertx, JsonObject config, RedisAPI redisClient) {
-        return new JobServiceImpl(vertx, config, redisClient);
-    }
+//    static JobService create(Kue kue, JsonObject config, RedisAPI redisClient) {
+//        return new JobServiceImpl(kue, config, redisClient);
+//    }
 
     /**
      * Factory method for creating a {@link JobService} service proxy.

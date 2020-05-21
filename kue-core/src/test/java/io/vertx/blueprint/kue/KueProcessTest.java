@@ -1,8 +1,11 @@
 package io.vertx.blueprint.kue;
 
+import io.vertx.blueprint.kue.queue.Job;
 import io.vertx.blueprint.kue.queue.JobState;
 import io.vertx.blueprint.kue.queue.KueVerticle;
 import io.vertx.blueprint.kue.queue.Priority;
+import io.vertx.core.AsyncResult;
+import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
@@ -65,9 +68,9 @@ public class KueProcessTest {
             context.assertEquals(Priority.NORMAL, job.getPriority());
             context.assertEquals(JobState.ACTIVE, job.getState());
             context.assertEquals(new JsonObject().put("data", TYPE_DELAYED + ":data"), job.getData());
-            job.done();
+            job.complete().onComplete(context.asyncAssertSuccess());
 
-            kue.getJob(job.getId()).setHandler(it -> {
+            kue.getJob(job.getId()).onComplete(it -> {
                 if (it.succeeded()) {
                     context.assertTrue(job.getPromote_at() - job.getCreated_at() >= 3000);
                     async.complete();
@@ -78,7 +81,7 @@ public class KueProcessTest {
         });
         kue.createJob(TYPE_DELAYED, new JsonObject().put("data", TYPE_DELAYED + ":data"))
                 .setDelay(3000)
-                .save().setHandler(it -> {
+                .save().onComplete(it -> {
             if (it.failed()) {
                 context.fail(it.cause());
             }
@@ -87,16 +90,15 @@ public class KueProcessTest {
 
     @Test(timeout = 2500)
     public void testProcessCreateJob(TestContext context) {
-        Async async = context.async();
+        Handler<AsyncResult<Job>> assertSuccess = context.asyncAssertSuccess();
         kue.process(TYPE, job -> {
             context.assertEquals(Priority.NORMAL, job.getPriority());
             context.assertEquals(JobState.ACTIVE, job.getState());
             context.assertEquals(new JsonObject().put("data", TYPE + ":data"), job.getData());
-            job.done();
-            async.complete();
+            job.complete().onComplete(assertSuccess);
         });
         kue.createJob(TYPE, new JsonObject().put("data", TYPE + ":data"))
-                .save().setHandler(it -> {
+                .save().onComplete(it -> {
             if (it.failed()) {
                 context.fail(it.cause());
             }
@@ -110,22 +112,22 @@ public class KueProcessTest {
             Async getJobsAsync = context.async();
             if (job.getId() == 1) {
                 //verify second job inactive
-                kue.getJob(2).setHandler(job2 -> {
+                kue.getJob(2).onComplete(job2 -> {
                     if (job2.succeeded()) {
                         context.assertTrue(job2.result().isPresent());
                         context.assertEquals(JobState.INACTIVE, job2.result().get().getState());
-                        getJobsAsync.countDown();
+                        job.onComplete(it -> getJobsAsync.countDown());
                     } else {
                         context.fail(job2.cause());
                     }
                 });
             } else if (job.getId() == 2) {
                 //verify first job complete
-                kue.getJob(1).setHandler(job1 -> {
+                kue.getJob(1).onComplete(job1 -> {
                     if (job1.succeeded()) {
                         context.assertTrue(job1.result().isPresent());
                         context.assertEquals(JobState.COMPLETE, job1.result().get().getState());
-                        getJobsAsync.countDown();
+                        job.onComplete(it -> getJobsAsync.countDown());
                     } else {
                         context.fail(job1.cause());
                     }
@@ -147,12 +149,12 @@ public class KueProcessTest {
             job.done();
         });
         kue.createJob(TYPE, new JsonObject().put("data", TYPE + ":data"))
-                .save().setHandler(it -> {
+                .save().onComplete(it -> {
             if (it.failed()) {
                 context.fail(it.cause());
             } else {
                 kue.createJob(TYPE, new JsonObject().put("data", TYPE + ":data"))
-                        .save().setHandler(it2 -> {
+                        .save().onComplete(it2 -> {
                     if (it2.failed()) {
                         context.fail(it2.cause());
                     }
@@ -167,7 +169,7 @@ public class KueProcessTest {
 //        kue.process(TYPE, 2, job -> {
 //            //verify both jobs active/completed
 //            Async getJobsAsync = context.async(2);
-//            kue.getJob(1).setHandler(job1 -> {
+//            kue.getJob(1).onComplete(job1 -> {
 //                if (job1.succeeded()) {
 //                    context.assertTrue(job1.result().isPresent());
 //                    context.assertTrue(JobState.ACTIVE == job1.result().get().getState()
@@ -177,7 +179,7 @@ public class KueProcessTest {
 //                    context.fail(job1.cause());
 //                }
 //            });
-//            kue.getJob(2).setHandler(job2 -> {
+//            kue.getJob(2).onComplete(job2 -> {
 //                if (job2.succeeded()) {
 //                    context.assertTrue(job2.result().isPresent());
 //                    System.out.println("Job2 state: " + job2.result().get().getState());
@@ -202,12 +204,12 @@ public class KueProcessTest {
 //            job.done();
 //        });
 //        kue.createJob(TYPE, new JsonObject().put("data", TYPE + ":data"))
-//                .save().setHandler(it -> {
+//                .save().onComplete(it -> {
 //            if (it.failed()) {
 //                context.fail(it.cause());
 //            } else {
 //                kue.createJob(TYPE, new JsonObject().put("data", TYPE + ":data"))
-//                        .save().setHandler(it2 -> {
+//                        .save().onComplete(it2 -> {
 //                    if (it2.failed()) {
 //                        context.fail(it2.cause());
 //                    }
@@ -218,7 +220,7 @@ public class KueProcessTest {
 
     @Test(timeout = 7500)
     public void testProcessBlockingCreateJob(TestContext context) {
-        Async async = context.async();
+        Handler<AsyncResult<Job>> assertSuccess = context.asyncAssertSuccess();
         kue.processBlocking(TYPE, job -> {
             context.assertEquals(Priority.NORMAL, job.getPriority());
             context.assertEquals(JobState.ACTIVE, job.getState());
@@ -228,11 +230,10 @@ public class KueProcessTest {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            job.done();
-            async.complete();
+            job.complete().onComplete(assertSuccess);
         });
         kue.createJob(TYPE, new JsonObject().put("data", TYPE + ":data"))
-                .save().setHandler(it -> {
+                .save().onComplete(it -> {
             if (it.failed()) {
                 context.fail(it.cause());
             }

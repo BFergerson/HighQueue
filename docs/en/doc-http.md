@@ -23,7 +23,7 @@ private void render(RoutingContext context, String state) {
   final String uiPath = "webroot/views/job/list.jade"; // (1)
   String title = config().getString("kue.ui.title", "Vert.x Kue");
   kue.getAllTypes()
-    .setHandler(resultHandler(context, r -> {
+    .onComplete(resultHandler(context, r -> {
       context.put("state", state) // (2)
         .put("types", r)
         .put("title", title);

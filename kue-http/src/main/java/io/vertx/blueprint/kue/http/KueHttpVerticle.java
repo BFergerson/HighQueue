@@ -111,7 +111,7 @@ public class KueHttpVerticle extends AbstractVerticle {
         final String uiPath = "webroot/views/job/list.jade";
         String title = config().getString("kue.ui.title", "Vert.x Kue");
         kue.getAllTypes()
-                .setHandler(resultHandler(context, r -> {
+                .onComplete(resultHandler(context, r -> {
                     context.put("state", state)
                             .put("types", r)
                             .put("title", title);
@@ -175,7 +175,7 @@ public class KueHttpVerticle extends AbstractVerticle {
         }).map(r -> {
             stats.put("delayedCount", r.size());
             return stats;
-        }).setHandler(resultHandler(context, r -> {
+        }).onComplete(resultHandler(context, r -> {
             context.response()
                     .putHeader("content-type", "application/json")
                     .end(r.encodePrettily());
@@ -186,7 +186,7 @@ public class KueHttpVerticle extends AbstractVerticle {
         try {
             String type = context.request().getParam("type");
             JobState state = JobState.valueOf(context.request().getParam("state").toUpperCase());
-            kue.cardByType(type, state).setHandler(resultHandler(context, r -> {
+            kue.cardByType(type, state).onComplete(resultHandler(context, r -> {
                 context.response()
                         .putHeader("content-type", "application/json")
                         .end(new JsonObject().put("count", r).encodePrettily());
@@ -197,7 +197,7 @@ public class KueHttpVerticle extends AbstractVerticle {
     }
 
     private void apiJobTypes(RoutingContext context) {
-        kue.getAllTypes().setHandler(resultHandler(context, r -> {
+        kue.getAllTypes().onComplete(resultHandler(context, r -> {
             context.response()
                     .putHeader("content-type", "application/json")
                     .end(new JsonArray(r).encodePrettily());
@@ -207,7 +207,7 @@ public class KueHttpVerticle extends AbstractVerticle {
     private void apiCreateJob(RoutingContext context) {
         try {
             Job job = new Job(new JsonObject(context.getBodyAsString())); // TODO: support json array create
-            job.save().setHandler(resultHandler(context, r -> {
+            job.save().onComplete(resultHandler(context, r -> {
                 String result = new JsonObject().put("message", "job created")
                         .put("id", r.getId())
                         .encodePrettily();
@@ -232,7 +232,7 @@ public class KueHttpVerticle extends AbstractVerticle {
                         } else {
                             return Future.succeededFuture();
                         }
-                    }).setHandler(resultHandler(context, job -> {
+                    }).onComplete(resultHandler(context, job -> {
                 if (job != null) {
                     context.response().putHeader("content-type", "application/json")
                             .end(new JsonObject().put("message", "job_state_updated").encodePrettily());
@@ -250,7 +250,7 @@ public class KueHttpVerticle extends AbstractVerticle {
     private void apiGetJob(RoutingContext context) {
         try {
             long id = Long.parseLong(context.request().getParam("id"));
-            kue.getJob(id).setHandler(resultHandler(context, r -> {
+            kue.getJob(id).onComplete(resultHandler(context, r -> {
                 if (r.isPresent()) {
                     context.response()
                             .putHeader("content-type", "application/json")
@@ -272,7 +272,7 @@ public class KueHttpVerticle extends AbstractVerticle {
             long from = Long.parseLong(context.request().getParam("from"));
             long to = Long.parseLong(context.request().getParam("to"));
             kue.jobRange(from, to, order)
-                    .setHandler(resultHandler(context, r -> {
+                    .onComplete(resultHandler(context, r -> {
                         String result = new JsonArray(r).encodePrettily();
                         context.response()
                                 .putHeader("content-type", "application/json")
@@ -295,7 +295,7 @@ public class KueHttpVerticle extends AbstractVerticle {
             String state = context.request().getParam("state");
             String type = context.request().getParam("type");
             kue.jobRangeByType(type, state, from, to, order)
-                    .setHandler(resultHandler(context, r -> {
+                    .onComplete(resultHandler(context, r -> {
                         String result = new JsonArray(r).encodePrettily();
                         context.response()
                                 .putHeader("content-type", "application/json")
@@ -316,7 +316,7 @@ public class KueHttpVerticle extends AbstractVerticle {
             long to = Long.parseLong(context.request().getParam("to"));
             String state = context.request().getParam("state");
             kue.jobRangeByState(state, from, to, order)
-                    .setHandler(resultHandler(context, r -> {
+                    .onComplete(resultHandler(context, r -> {
                         String result = new JsonArray(r).encodePrettily();
                         context.response()
                                 .putHeader("content-type", "application/json")
@@ -335,7 +335,7 @@ public class KueHttpVerticle extends AbstractVerticle {
     private void apiDeleteJob(RoutingContext context) {
         try {
             long id = Long.parseLong(context.request().getParam("id"));
-            kue.removeJob(id).setHandler(resultHandler(context, r -> {
+            kue.removeJob(id).onComplete(resultHandler(context, r -> {
                 context.response().setStatusCode(204)
                         .putHeader("content-type", "application/json")
                         .end(new JsonObject().put("message", "job " + id + " removed").encodePrettily());
@@ -348,9 +348,9 @@ public class KueHttpVerticle extends AbstractVerticle {
     private void apiRestartJob(RoutingContext context) {
         try {
             long id = Long.parseLong(context.request().getParam("id"));
-            kue.getJob(id).setHandler(resultHandler(context, r -> {
+            kue.getJob(id).onComplete(resultHandler(context, r -> {
                 if (r.isPresent()) {
-                    r.get().inactive().setHandler(resultHandler(context, r1 -> {
+                    r.get().inactive().onComplete(resultHandler(context, r1 -> {
                         context.response()
                                 .putHeader("content-type", "application/json")
                                 .end(new JsonObject().put("message", "job " + id + " restart").encodePrettily());
@@ -367,7 +367,7 @@ public class KueHttpVerticle extends AbstractVerticle {
     private void apiFetchLog(RoutingContext context) {
         try {
             long id = Long.parseLong(context.request().getParam("id"));
-            kue.getJobLog(id).setHandler(resultHandler(context, r -> {
+            kue.getJobLog(id).onComplete(resultHandler(context, r -> {
                 context.response().putHeader("content-type", "application/json")
                         .end(r.encodePrettily());
             }));

@@ -38,7 +38,7 @@ public class DelayedEmailVerticle extends AbstractVerticle {
                 .priority(Priority.HIGH)
                 .save() // save job
                 .compose(c -> email.save()) // save another job
-                .setHandler(sr -> {
+                .onComplete(sr -> {
                     if (sr.succeeded()) {
                         // process emails
                         kue.processBlocking("email", 10, job -> {

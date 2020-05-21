@@ -34,13 +34,13 @@ public class CallbackKueImpl implements CallbackKue {
 
     @Override
     public CallbackKue saveJob(Job job, Handler<AsyncResult<Job>> handler) {
-        job.save().setHandler(handler);
+        job.save().onComplete(handler);
         return this;
     }
 
     @Override
     public CallbackKue jobProgress(Job job, int complete, int total, Handler<AsyncResult<Job>> handler) {
-        job.progress(complete, total).setHandler(handler);
+        job.progress(complete, total).onComplete(handler);
         return this;
     }
 

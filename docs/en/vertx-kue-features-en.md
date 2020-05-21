@@ -35,7 +35,7 @@ JsonObject data = new JsonObject()
 
 Job job = kue.createJob("learn vertx", data);
 
-job.save().setHandler(r0 -> {
+job.save().onComplete(r0 -> {
     if (r0.succeeded()) {
         // process the job
     } else {
@@ -182,7 +182,7 @@ kue.on("error", event -> {
 
 ```java
 kue.inactiveCount(null)
-  .setHandler(r -> {
+  .onComplete(r -> {
     if (r.succeeded()) {
       if (r.result() > 1000)
         System.out.println("It's too bad!");
@@ -194,7 +194,7 @@ It also supports query on a specific job type:
 
 ```java
 kue.failedCount("my-job")
-  .setHandler(r -> {
+  .onComplete(r -> {
     if (r.succeeded()) {
       if (r.result() > 1000)
         System.out.println("It's too bad!");
@@ -206,7 +206,7 @@ and iterating over job ids:
 
 ```java
 kue.getIdsByState(JobState.ACTIVE)
-  .setHandler(r -> {
+  .onComplete(r -> {
     // ...
   });
 ```

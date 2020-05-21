@@ -17,7 +17,6 @@ import io.vertx.core.logging.LoggerFactory;
 import io.vertx.redis.client.Redis;
 import io.vertx.redis.client.RedisAPI;
 import io.vertx.redis.client.ResponseType;
-import io.vertx.redis.op.RangeLimitOptions;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +38,7 @@ public class Kue {
     private final JobService jobService;
     private final Redis client;
     private final RedisAPI redisAPI;
+    private boolean closed = false;
 
     public Kue(Vertx vertx, JsonObject config) {
         this.vertx = vertx;
@@ -51,7 +51,7 @@ public class Kue {
                 it.cause().printStackTrace();
             }
         });
-        Job.setVertx(vertx, redisAPI, config); // init static vertx instance inner job
+        Job.setKue(this, redisAPI, config); // init static kue instance inner job
     }
 
     public Kue(Vertx vertx, JsonObject config, Redis redisClient) {
@@ -67,7 +67,7 @@ public class Kue {
                 it.cause().printStackTrace();
             }
         });
-        Job.setVertx(vertx, redisAPI, config); // init static vertx instance inner job
+        Job.setKue(this, redisAPI, config); // init static kue instance inner job
     }
 
     /**
@@ -455,7 +455,9 @@ public class Kue {
             zrangebyscoreArgs.add(RedisHelper.getKey("jobs:DELAYED"));
             zrangebyscoreArgs.add(String.valueOf(0));
             zrangebyscoreArgs.add(String.valueOf(System.currentTimeMillis()));
-            zrangebyscoreArgs.addAll(new RangeLimitOptions(new JsonObject().put("offset", 0).put("count", limit)).toJsonArray().getList());
+            zrangebyscoreArgs.add("LIMIT");
+            zrangebyscoreArgs.add("0");
+            zrangebyscoreArgs.add(Integer.toString(limit));
             redisAPI.zrangebyscore(zrangebyscoreArgs, r -> {
                 if (r.succeeded()) {
                     JsonArray result = new JsonArray();
@@ -475,7 +477,7 @@ public class Kue {
                         logger.info("Found delayed job: " + id);
 
                         this.getJob(id).compose(jr -> jr.get().inactive())
-                                .setHandler(jr -> {
+                                .onComplete(jr -> {
                                     if (jr.succeeded()) {
                                         jr.result().emit("promotion", jr.result().getId());
                                     } else {
@@ -502,13 +504,27 @@ public class Kue {
             zrangebyscoreArgs.add(RedisHelper.getKey("jobs:ACTIVE"));
             zrangebyscoreArgs.add(String.valueOf(100000));
             zrangebyscoreArgs.add(String.valueOf(System.currentTimeMillis()));
-            zrangebyscoreArgs.addAll(new RangeLimitOptions(new JsonObject().put("offset", 0).put("count", limit)).toJsonArray().getList());
+            zrangebyscoreArgs.add("LIMIT");
+            zrangebyscoreArgs.add("0");
+            zrangebyscoreArgs.add(Integer.toString(limit));
             redisAPI.zrangebyscore(zrangebyscoreArgs, r -> {
                 if (r.failed()) {
                     r.cause().printStackTrace();
                 }
             });
         });
+    }
+
+    public void setClosed(boolean closed) {
+        this.closed = closed;
+    }
+
+    public boolean isClosed() {
+        return closed;
+    }
+
+    public Vertx getVertx() {
+        return vertx;
     }
 
     public Redis getClient() {

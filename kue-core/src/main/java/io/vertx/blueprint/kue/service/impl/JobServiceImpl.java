@@ -1,5 +1,6 @@
 package io.vertx.blueprint.kue.service.impl;
 
+import io.vertx.blueprint.kue.Kue;
 import io.vertx.blueprint.kue.queue.Job;
 import io.vertx.blueprint.kue.queue.JobState;
 import io.vertx.blueprint.kue.service.JobService;
@@ -12,7 +13,9 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import io.vertx.redis.client.Command;
 import io.vertx.redis.client.RedisAPI;
+import io.vertx.redis.client.Request;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -27,26 +30,29 @@ public final class JobServiceImpl implements JobService {
 
     private static final Logger logger = LoggerFactory.getLogger(JobServiceImpl.class);
 
+    private final Kue kue;
     private final Vertx vertx;
     private final JsonObject config;
     private final RedisAPI client;
 
-    public JobServiceImpl(Vertx vertx) {
-        this(vertx, new JsonObject());
+    public JobServiceImpl(Kue kue) {
+        this(kue, new JsonObject());
     }
 
-    public JobServiceImpl(Vertx vertx, JsonObject config) {
-        this.vertx = vertx;
+    public JobServiceImpl(Kue kue, JsonObject config) {
+        this.kue = kue;
+        this.vertx = kue.getVertx();
         this.config = config;
         this.client = RedisAPI.api(RedisHelper.client(vertx, config));
-        Job.setVertx(vertx, client, config); // init static vertx instance inner job
+        Job.setKue(kue, client, config); // init static kue instance inner job
     }
 
-    public JobServiceImpl(Vertx vertx, JsonObject config, RedisAPI redisClient) {
-        this.vertx = vertx;
+    public JobServiceImpl(Kue kue, JsonObject config, RedisAPI redisClient) {
+        this.kue = kue;
+        this.vertx = kue.getVertx();
         this.config = config;
         this.client = redisClient;
-        Job.setVertx(vertx, redisClient, config); // init static vertx instance inner job
+        Job.setKue(kue, redisClient, config); // init static kue instance inner job
     }
 
     @Override
@@ -84,7 +90,7 @@ public final class JobServiceImpl implements JobService {
             if (r.succeeded()) {
                 if (r.result() != null) {
                     r.result().remove()
-                            .setHandler(handler);
+                            .onComplete(handler);
                 } else {
                     handler.handle(Future.succeededFuture());
                 }
@@ -198,36 +204,54 @@ public final class JobServiceImpl implements JobService {
     private JobService removeBadJob(long id, String jobType, Handler<AsyncResult<Void>> handler) {
         logger.error("Removing bad job: " + id);
         String zid = RedisHelper.createFIFO(id);
-        client.multi(it -> {
-            if (it.succeeded()) {
-                client.del(Collections.singletonList(RedisHelper.getKey("job:" + id + ":log")), null)
-                        .del(Collections.singletonList(RedisHelper.getKey("job:" + id)), null)
-                        .zrem(Arrays.asList(RedisHelper.getKey("jobs:INACTIVE"), zid), null)
-                        .zrem(Arrays.asList(RedisHelper.getKey("jobs:ACTIVE"), zid), null)
-                        .zrem(Arrays.asList(RedisHelper.getKey("jobs:COMPLETE"), zid), null)
-                        .zrem(Arrays.asList(RedisHelper.getKey("jobs:FAILED"), zid), null)
-                        .zrem(Arrays.asList(RedisHelper.getKey("jobs:DELAYED"), zid), null)
-                        .zrem(Arrays.asList(RedisHelper.getKey("jobs"), zid), null)
-                        .zrem(Arrays.asList(RedisHelper.getKey("jobs:" + jobType + ":INACTIVE"), zid), null)
-                        .zrem(Arrays.asList(RedisHelper.getKey("jobs:" + jobType + ":ACTIVE"), zid), null)
-                        .zrem(Arrays.asList(RedisHelper.getKey("jobs:" + jobType + ":COMPLETE"), zid), null)
-                        .zrem(Arrays.asList(RedisHelper.getKey("jobs:" + jobType + ":FAILED"), zid), null)
-                        .zrem(Arrays.asList(RedisHelper.getKey("jobs:" + jobType + ":DELAYED"), zid), null)
-                        .exec(r -> {
-                            if (handler != null) {
-                                if (r.succeeded())
-                                    handler.handle(Future.succeededFuture());
-                                else
-                                    handler.handle(Future.failedFuture(r.cause()));
-                            }
-                        });
-            } else {
-                handler.handle(Future.failedFuture(it.cause()));
+        List<Request> commandRequests = new ArrayList<>();
+        commandRequests.add(Request.cmd(Command.DEL)
+                .arg(RedisHelper.getKey("job:" + id + ":log")));
+        commandRequests.add(Request.cmd(Command.DEL)
+                .arg(RedisHelper.getKey("job:" + id)));
+        commandRequests.add(Request.cmd(Command.ZREM)
+                .arg(RedisHelper.getKey("jobs:INACTIVE"))
+                .arg(zid));
+        commandRequests.add(Request.cmd(Command.ZREM)
+                .arg(RedisHelper.getKey("jobs:ACTIVE"))
+                .arg(zid));
+        commandRequests.add(Request.cmd(Command.ZREM)
+                .arg(RedisHelper.getKey("jobs:COMPLETE"))
+                .arg(zid));
+        commandRequests.add(Request.cmd(Command.ZREM)
+                .arg(RedisHelper.getKey("jobs:FAILED"))
+                .arg(zid));
+        commandRequests.add(Request.cmd(Command.ZREM)
+                .arg(RedisHelper.getKey("jobs:DELAYED"))
+                .arg(zid));
+        commandRequests.add(Request.cmd(Command.ZREM)
+                .arg(RedisHelper.getKey("jobs"))
+                .arg(zid));
+        commandRequests.add(Request.cmd(Command.ZREM)
+                .arg(RedisHelper.getKey("jobs:" + jobType + ":INACTIVE"))
+                .arg(zid));
+        commandRequests.add(Request.cmd(Command.ZREM)
+                .arg(RedisHelper.getKey("jobs:" + jobType + ":ACTIVE"))
+                .arg(zid));
+        commandRequests.add(Request.cmd(Command.ZREM)
+                .arg(RedisHelper.getKey("jobs:" + jobType + ":COMPLETE"))
+                .arg(zid));
+        commandRequests.add(Request.cmd(Command.ZREM)
+                .arg(RedisHelper.getKey("jobs:" + jobType + ":FAILED"))
+                .arg(zid));
+        commandRequests.add(Request.cmd(Command.ZREM)
+                .arg(RedisHelper.getKey("jobs:" + jobType + ":DELAYED"))
+                .arg(zid));
+        kue.getClient().batch(commandRequests, r -> {
+            if (handler != null) {
+                if (r.succeeded())
+                    handler.handle(Future.succeededFuture());
+                else
+                    handler.handle(Future.failedFuture(r.cause()));
             }
         });
 
         // TODO: add search functionality
-
         return this;
     }
 
