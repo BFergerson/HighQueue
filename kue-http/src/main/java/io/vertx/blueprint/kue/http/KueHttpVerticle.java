@@ -3,10 +3,7 @@ package io.vertx.blueprint.kue.http;
 import io.vertx.blueprint.kue.Kue;
 import io.vertx.blueprint.kue.queue.Job;
 import io.vertx.blueprint.kue.queue.JobState;
-import io.vertx.core.AbstractVerticle;
-import io.vertx.core.AsyncResult;
-import io.vertx.core.Future;
-import io.vertx.core.Handler;
+import io.vertx.core.*;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -58,7 +55,7 @@ public class KueHttpVerticle extends AbstractVerticle {
     private JadeTemplateEngine engine;
 
     @Override
-    public void start(Future<Void> future) throws Exception {
+    public void start(Promise<Void> future) {
         // init kue
         kue = Kue.createQueue(vertx, config());
         engine = JadeTemplateEngine.create(vertx);
@@ -91,17 +88,18 @@ public class KueHttpVerticle extends AbstractVerticle {
         router.route().handler(StaticHandler.create());
 
         // create server
+        String listenHost = config().getString("http.address", HOST);
+        int listenPort = config().getInteger("http.port", PORT);
         vertx.createHttpServer()
-                .requestHandler(router::accept)
-                .listen(config().getInteger("http.port", PORT),
-                        config().getString("http.address", HOST), result -> {
-                            if (result.succeeded()) {
-                                System.out.println("Kue http server is running on " + PORT + " port...");
-                                future.complete();
-                            } else {
-                                future.fail(result.cause());
-                            }
-                        });
+                .requestHandler(router)
+                .listen(listenPort, listenHost, result -> {
+                    if (result.succeeded()) {
+                        logger.info(String.format("Listening on: %s:%d", listenHost, listenPort));
+                        future.complete();
+                    } else {
+                        future.fail(result.cause());
+                    }
+                });
     }
 
     /**
