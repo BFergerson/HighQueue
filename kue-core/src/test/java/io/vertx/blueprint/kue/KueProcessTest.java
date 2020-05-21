@@ -116,6 +116,7 @@ public class KueProcessTest {
                     if (job2.succeeded()) {
                         context.assertTrue(job2.result().isPresent());
                         context.assertEquals(JobState.INACTIVE, job2.result().get().getState());
+                        job.done();
                         job.onComplete(it -> getJobsAsync.countDown());
                     } else {
                         context.fail(job2.cause());
@@ -127,6 +128,7 @@ public class KueProcessTest {
                     if (job1.succeeded()) {
                         context.assertTrue(job1.result().isPresent());
                         context.assertEquals(JobState.COMPLETE, job1.result().get().getState());
+                        job.done();
                         job.onComplete(it -> getJobsAsync.countDown());
                     } else {
                         context.fail(job1.cause());
@@ -146,7 +148,6 @@ public class KueProcessTest {
             context.assertEquals(Priority.NORMAL, job.getPriority());
             context.assertEquals(JobState.ACTIVE, job.getState());
             context.assertEquals(new JsonObject().put("data", TYPE + ":data"), job.getData());
-            job.done();
         });
         kue.createJob(TYPE, new JsonObject().put("data", TYPE + ":data"))
                 .save().onComplete(it -> {
