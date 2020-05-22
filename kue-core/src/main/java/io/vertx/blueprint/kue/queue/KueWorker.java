@@ -140,9 +140,6 @@ public class KueWorker extends AbstractVerticle {
         job.failedAttempt(ex).onComplete(r -> {
             if (r.failed()) {
                 this.error(r.cause(), job);
-
-                //todo: may need to move prepareAndStart() down one
-                logger.error("Failed to set failedAttempt. Didn't call prepareAndStart");
             } else {
                 Job res = r.result();
                 if (res.hasAttempts()) {
@@ -150,8 +147,8 @@ public class KueWorker extends AbstractVerticle {
                 } else {
                     this.emitJobEvent("failed", job, new JsonObject().put("message", ex.getMessage()));
                 }
-                prepareAndStart();
             }
+            prepareAndStart();
         });
     }
 
