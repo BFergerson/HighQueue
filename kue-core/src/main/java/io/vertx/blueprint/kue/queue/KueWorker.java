@@ -64,21 +64,20 @@ public class KueWorker extends AbstractVerticle {
      */
     private void prepareAndStart() {
         cleanup();
-        logger.info("Getting job from backend");
-        this.getJobFromBackend().onComplete(jr -> {
+        getJobFromBackend().onComplete(jr -> {
             if (jr.succeeded()) {
                 if (jr.result().isPresent()) {
-                    this.job = jr.result().get();
-                    this.job.setLocalClient(client);
+                    job = jr.result().get();
+                    job.setLocalClient(client);
 
                     logger.info("Got job from backend. Job id: " + job.getId());
                     process();
                 } else {
-                    this.emitJobEvent("error", null, new JsonObject().put("message", "job_not_exist"));
+                    emitJobEvent("error", null, new JsonObject().put("message", "job_not_exist"));
                     throw new IllegalStateException("job not exist");
                 }
             } else {
-                this.emitJobEvent("error", null, new JsonObject().put("message", jr.cause().getMessage()));
+                emitJobEvent("error", null, new JsonObject().put("message", jr.cause().getMessage()));
                 jr.cause().printStackTrace();
             }
         });
@@ -110,8 +109,8 @@ public class KueWorker extends AbstractVerticle {
                         } catch (Exception ex) {
                             j.done(ex);
                         }
-                        // subscribe the job done event
 
+                        // subscribe the job done event
                         doneConsumer = eventBus.consumer(Kue.workerAddress("done", j), msg -> {
                             createDoneCallback(j).handle(Future.succeededFuture(msg.body().getJsonObject("result")));
                         });
@@ -163,7 +162,7 @@ public class KueWorker extends AbstractVerticle {
      * @return the async result of zpop
      */
     private Future<Long> zpop(String key) {
-        Future<Long> future = Future.future();
+        Promise<Long> promise = Promise.promise();
         client.zpopmin(Collections.singletonList(key), r -> {
             if (r.succeeded()) {
                 JsonArray res = new JsonArray();
@@ -179,15 +178,15 @@ public class KueWorker extends AbstractVerticle {
                     }
                 });
                 try {
-                    future.complete(Long.parseLong(RedisHelper.stripFIFO(res.getString(0))));
+                    promise.complete(Long.parseLong(RedisHelper.stripFIFO(res.getString(0))));
                 } catch (Exception ex) {
-                    future.fail(ex);
+                    promise.fail(ex);
                 }
             } else {
-                future.fail(r.cause());
+                promise.fail(r.cause());
             }
         });
-        return future;
+        return promise.future();
     }
 
     /**
@@ -197,30 +196,33 @@ public class KueWorker extends AbstractVerticle {
      */
     private Future<Optional<Job>> getJobFromBackend() {
         logger.debug("Getting job from backend");
-        Future<Optional<Job>> future = Future.future();
-        client.blpop(Arrays.asList(RedisHelper.getKey(this.type + ":jobs"), "0"), r1 -> {
+        Promise<Optional<Job>> promise = Promise.promise();
+        client.blpop(Arrays.asList(RedisHelper.getKey(String.format("%s:jobs", type)), "0"), r1 -> {
             if (r1.failed()) {
                 if (!kue.isClosed()) {
-                    client.lpush(Arrays.asList(RedisHelper.getKey(this.type + ":jobs"), "1"), r2 -> {
-                        if (r2.failed())
-                            future.fail(r2.cause());
+                    client.lpush(Arrays.asList(RedisHelper.getKey(String.format("%s:jobs", type)), "1"), r2 -> {
+                        if (r2.failed()) {
+                            promise.fail(r2.cause());
+                        }
                     });
+                } else {
+                    logger.info("Prematurely ended looking for backend jobs due to Kue closing");
                 }
             } else {
-                this.zpop(RedisHelper.getKey("jobs:" + this.type + ":INACTIVE"))
+                zpop(RedisHelper.getKey(String.format("jobs:%s:INACTIVE", type)))
                         .compose(kue::getJob)
                         .onComplete(r -> {
                             if (r.succeeded()) {
                                 logger.debug("Successfully fetched job from backend");
-                                future.complete(r.result());
+                                promise.complete(r.result());
                             } else {
                                 logger.error("Failed to fetch job from backend", r.cause());
-                                future.fail(r.cause());
+                                promise.fail(r.cause());
                             }
                         });
             }
         });
-        return future;
+        return promise.future();
     }
 
     private Handler<AsyncResult<JsonObject>> createDoneCallback(Job job) {
@@ -287,11 +289,4 @@ public class KueWorker extends AbstractVerticle {
                 eventBus.send(Kue.getCertainJobAddress(event, job), job.toJson());
         }
     }
-
-//    private static <T> Handler<AsyncResult<T>> _failure() {
-//        return r -> {
-//            if (r.failed())
-//                r.cause().printStackTrace();
-//        };
-//    }
 }

@@ -5,10 +5,7 @@ import io.vertx.blueprint.kue.queue.JobState;
 import io.vertx.blueprint.kue.queue.KueWorker;
 import io.vertx.blueprint.kue.service.JobService;
 import io.vertx.blueprint.kue.util.RedisHelper;
-import io.vertx.core.DeploymentOptions;
-import io.vertx.core.Future;
-import io.vertx.core.Handler;
-import io.vertx.core.Vertx;
+import io.vertx.core.*;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -230,15 +227,15 @@ public class Kue {
      * @return async result
      */
     public Future<Optional<Job>> getJob(long id) {
-        Future<Optional<Job>> future = Future.future();
+        Promise<Optional<Job>> promise = Promise.promise();
         jobService.getJob(id, r -> {
             if (r.succeeded()) {
-                future.complete(Optional.ofNullable(r.result()));
+                promise.complete(Optional.ofNullable(r.result()));
             } else {
-                future.fail(r.cause());
+                promise.fail(r.cause());
             }
         });
-        return future;
+        return promise.future();
     }
 
     /**

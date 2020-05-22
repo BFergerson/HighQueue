@@ -240,4 +240,62 @@ public class KueProcessTest {
             }
         });
     }
+
+    @Test(timeout = 2500)
+    public void testRestartJob(TestContext context) {
+        Handler<AsyncResult<Job>> assertSuccess = context.asyncAssertSuccess();
+        kue.process(TYPE, job -> {
+            context.assertEquals(1L, job.getId());
+            context.assertEquals(Priority.NORMAL, job.getPriority());
+            context.assertEquals(JobState.ACTIVE, job.getState());
+
+            if (job.getData().getBoolean("restarted") == Boolean.TRUE) {
+                job.complete().onComplete(assertSuccess);
+            } else {
+                job.getData().put("restarted", Boolean.TRUE);
+                job.save().onComplete(it -> {
+                    if (it.succeeded()) {
+                        job.done().onComplete(it2 -> it2.inactive().onComplete(context.asyncAssertSuccess()));
+                    } else {
+                        context.fail(it.cause());
+                    }
+                });
+            }
+        });
+        kue.createJob(TYPE, new JsonObject().put("data", TYPE + ":data"))
+                .save().onComplete(it -> {
+            if (it.failed()) {
+                context.fail(it.cause());
+            }
+        });
+    }
+
+//    @Test(timeout = 7500)
+//    public void testRestartActiveJob(TestContext context) {
+//        Handler<AsyncResult<Job>> assertSuccess = context.asyncAssertSuccess();
+//        kue.process(TYPE, job -> {
+//            context.assertEquals(Priority.NORMAL, job.getPriority());
+//            context.assertEquals(JobState.ACTIVE, job.getState());
+//
+//            if (job.getData().getBoolean("restarted") == Boolean.TRUE) {
+//                job.complete().onComplete(assertSuccess);
+//            } else {
+//                job.getData().put("restarted", Boolean.TRUE);
+//                job.save().onComplete(it -> {
+//                    if (it.succeeded()) {
+//                        //restart job before finished
+//                        it.result().inactive().onComplete(context.asyncAssertSuccess());
+//                    } else {
+//                        context.fail(it.cause());
+//                    }
+//                });
+//            }
+//        });
+//        kue.createJob(TYPE, new JsonObject().put("data", TYPE + ":data"))
+//                .save().onComplete(it -> {
+//            if (it.failed()) {
+//                context.fail(it.cause());
+//            }
+//        });
+//    }
 }

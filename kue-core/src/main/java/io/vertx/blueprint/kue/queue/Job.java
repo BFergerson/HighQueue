@@ -315,7 +315,7 @@ public class Job {
      * @param key   property key
      * @param value value
      */
-    public Future<Job> set(String key, String value) {
+    protected Future<Job> set(String key, String value) {
         logger.debug(String.format("Setting %s to %s", key, value));
         Future<Job> future = Future.future();
         getClient().hset(Arrays.asList(RedisHelper.getKey("job:" + this.id), key, value), r -> {
