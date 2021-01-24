@@ -4,7 +4,7 @@ import io.vertx.blueprint.kue.Kue;
 import io.vertx.blueprint.kue.service.JobService;
 import io.vertx.blueprint.kue.service.impl.JobServiceImpl;
 import io.vertx.core.AbstractVerticle;
-import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
@@ -33,7 +33,7 @@ public class KueVerticle extends AbstractVerticle {
     }
 
     @Override
-    public void start(Future<Void> future) {
+    public void start(Promise<Void> future) throws Exception {
         this.config = config();
         this.jobService = new JobServiceImpl(kue, config, kue.getRedisAPI());
         kue.getClient().connect(it -> {
@@ -53,7 +53,7 @@ public class KueVerticle extends AbstractVerticle {
         logger.info("Closed Kue");
     }
 
-    private void testConnection(Future<Void> future) {
+    private void testConnection(Promise<Void> future) {
         kue.getRedisAPI().ping(Collections.emptyList(), pr -> { // test connection
             if (pr.succeeded()) {
                 logger.info("Kue Verticle is running...");

@@ -6,6 +6,7 @@ import io.vertx.blueprint.kue.queue.KueVerticle;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.http.HttpClient;
+import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
@@ -70,12 +71,16 @@ public class KueRestApiTest {
         Vertx vertx = Vertx.vertx();
         HttpClient client = vertx.createHttpClient();
         Async async = context.async();
-        client.getNow(PORT, HOST, "/stats", response -> {
-            response.bodyHandler(body -> {
-                JsonObject stats = new JsonObject(body.toString());
-                context.assertEquals(stats.getInteger("inactiveCount") > 0, true);
-                client.close();
-                async.complete();
+        client.request(HttpMethod.GET, PORT, HOST, "/stats", it -> {
+            context.assertTrue(it.succeeded());
+            it.result().send(rsp -> {
+                context.assertTrue(rsp.succeeded());
+                rsp.result().bodyHandler(body -> {
+                    JsonObject stats = new JsonObject(body.toString());
+                    context.assertEquals(stats.getInteger("inactiveCount") > 0, true);
+                    client.close();
+                    async.complete();
+                });
             });
         });
     }
@@ -120,11 +125,17 @@ public class KueRestApiTest {
                 .onComplete(jr -> {
                     if (jr.succeeded()) {
                         long id = jr.result().getId();
-                        client.getNow(PORT, HOST, "/job/" + id, response -> response.bodyHandler(body -> {
-                            context.assertEquals(new Job(new JsonObject(body.toString())).getId(), id);
-                            client.close();
-                            async.complete();
-                        }));
+                        client.request(HttpMethod.GET, PORT, HOST, "/job/" + id, it -> {
+                            context.assertTrue(it.succeeded());
+                            it.result().send(rsp -> {
+                                context.assertTrue(rsp.succeeded());
+                                rsp.result().bodyHandler(body -> {
+                                    context.assertEquals(new Job(new JsonObject(body.toString())).getId(), id);
+                                    client.close();
+                                    async.complete();
+                                });
+                            });
+                        });
                     } else {
                         context.fail(jr.cause());
                     }
@@ -136,11 +147,15 @@ public class KueRestApiTest {
         Vertx vertx = Vertx.vertx();
         HttpClient client = vertx.createHttpClient();
         Async async = context.async();
-        client.delete(PORT, HOST, "/job/66", rsp -> {
-            context.assertEquals(204, rsp.statusCode());
-            client.close();
-            async.complete();
-        }).end();
+        client.request(HttpMethod.DELETE, PORT, HOST, "/job/66", it -> {
+            context.assertTrue(it.succeeded());
+            it.result().send(rsp -> {
+                context.assertTrue(rsp.succeeded());
+                context.assertEquals(204, rsp.result().statusCode());
+                client.close();
+                async.complete();
+            });
+        });
     }
 
     @Test
@@ -149,15 +164,18 @@ public class KueRestApiTest {
         HttpClient client = vertx.createHttpClient();
         Async async = context.async();
         Job job = kue.createJob(TYPE, new JsonObject().put("data", TYPE + ":data"));
-        client.put(PORT, HOST, "/job", response -> {
-            context.assertEquals(201, response.statusCode());
-            response.bodyHandler(body -> {
-                context.assertEquals(new JsonObject(body.toString()).getString("message"), "job created");
-                client.close();
-                async.complete();
+        client.request(HttpMethod.PUT, PORT, HOST, "/job", it -> {
+            context.assertTrue(it.succeeded());
+            it.result().putHeader("content-type", "application/json").end(job.toString());
+            it.result().send(rsp -> {
+                context.assertEquals(201, rsp.result().statusCode());
+                rsp.result().bodyHandler(body -> {
+                    context.assertEquals(new JsonObject(body.toString()).getString("message"), "job created");
+                    client.close();
+                    async.complete();
+                });
             });
-        }).putHeader("content-type", "application/json")
-                .end(job.toString());
+        });
     }
 
 }

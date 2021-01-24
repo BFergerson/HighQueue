@@ -261,9 +261,9 @@ public class Kue {
      * @return async result
      */
     public Future<Boolean> existsJob(long id) {
-        Future<Boolean> future = Future.future();
+        Promise<Boolean> future = Promise.promise();
         jobService.existsJob(id, future);
-        return future;
+        return future.future();
     }
 
     /**
@@ -273,9 +273,9 @@ public class Kue {
      * @return async result
      */
     public Future<JsonArray> getJobLog(long id) {
-        Future<JsonArray> future = Future.future();
+        Promise<JsonArray> future = Promise.promise();
         jobService.getJobLog(id, future);
-        return future;
+        return future.future();
     }
 
     /**
@@ -285,9 +285,9 @@ public class Kue {
      * @see JobService#jobRangeByState(String, long, long, String, Handler)
      */
     public Future<List<Job>> jobRangeByState(String state, long from, long to, String order) {
-        Future<List<Job>> future = Future.future();
+        Promise<List<Job>> future = Promise.promise();
         jobService.jobRangeByState(state, from, to, order, future);
-        return future;
+        return future.future();
     }
 
     /**
@@ -297,9 +297,9 @@ public class Kue {
      * @see JobService#jobRangeByType(String, String, long, long, String, Handler)
      */
     public Future<List<Job>> jobRangeByType(String type, String state, long from, long to, String order) {
-        Future<List<Job>> future = Future.future();
+        Promise<List<Job>> future = Promise.promise();
         jobService.jobRangeByType(type, state, from, to, order, future);
-        return future;
+        return future.future();
     }
 
     /**
@@ -309,9 +309,9 @@ public class Kue {
      * @see JobService#jobRange(long, long, String, Handler)
      */
     public Future<List<Job>> jobRange(long from, long to, String order) {
-        Future<List<Job>> future = Future.future();
+        Promise<List<Job>> future = Promise.promise();
         jobService.jobRange(from, to, order, future);
-        return future;
+        return future.future();
     }
 
     // runtime cardinality metrics
@@ -324,9 +324,9 @@ public class Kue {
      * @return corresponding cardinality (Future)
      */
     public Future<Long> cardByType(String type, JobState state) {
-        Future<Long> future = Future.future();
+        Promise<Long> future = Promise.promise();
         jobService.cardByType(type, state, future);
-        return future;
+        return future.future();
     }
 
     /**
@@ -336,9 +336,9 @@ public class Kue {
      * @return corresponding cardinality (Future)
      */
     public Future<Long> card(JobState state) {
-        Future<Long> future = Future.future();
+        Promise<Long> future = Promise.promise();
         jobService.card(state, future);
-        return future;
+        return future.future();
     }
 
     /**
@@ -347,9 +347,9 @@ public class Kue {
      * @param type job type; if null, then return global metrics.
      */
     public Future<Long> completeCount(String type) {
-        Future<Long> future = Future.future();
+        Promise<Long> future = Promise.promise();
         jobService.completeCount(type, future);
-        return future;
+        return future.future();
     }
 
     /**
@@ -358,9 +358,9 @@ public class Kue {
      * @param type job type; if null, then return global metrics.
      */
     public Future<Long> failedCount(String type) {
-        Future<Long> future = Future.future();
+        Promise<Long> future = Promise.promise();
         jobService.failedCount(type, future);
-        return future;
+        return future.future();
     }
 
     /**
@@ -369,9 +369,9 @@ public class Kue {
      * @param type job type; if null, then return global metrics.
      */
     public Future<Long> inactiveCount(String type) {
-        Future<Long> future = Future.future();
+        Promise<Long> future = Promise.promise();
         jobService.inactiveCount(type, future);
-        return future;
+        return future.future();
     }
 
     /**
@@ -380,9 +380,9 @@ public class Kue {
      * @param type job type; if null, then return global metrics.
      */
     public Future<Long> activeCount(String type) {
-        Future<Long> future = Future.future();
+        Promise<Long> future = Promise.promise();
         jobService.activeCount(type, future);
-        return future;
+        return future.future();
     }
 
     /**
@@ -391,9 +391,9 @@ public class Kue {
      * @param type job type; if null, then return global metrics.
      */
     public Future<Long> delayedCount(String type) {
-        Future<Long> future = Future.future();
+        Promise<Long> future = Promise.promise();
         jobService.delayedCount(type, future);
-        return future;
+        return future.future();
     }
 
     /**
@@ -402,9 +402,9 @@ public class Kue {
      * @return async result list
      */
     public Future<List<String>> getAllTypes() {
-        Future<List<String>> future = Future.future();
+        Promise<List<String>> future = Promise.promise();
         jobService.getAllTypes(future);
-        return future;
+        return future.future();
     }
 
     /**
@@ -414,9 +414,9 @@ public class Kue {
      * @return async result list
      */
     public Future<List<Long>> getIdsByState(JobState state) {
-        Future<List<Long>> future = Future.future();
+        Promise<List<Long>> future = Promise.promise();
         jobService.getIdsByState(state, future);
-        return future;
+        return future.future();
     }
 
     /**
@@ -425,9 +425,9 @@ public class Kue {
      * @return async result
      */
     public Future<Long> getWorkTime() {
-        Future<Long> future = Future.future();
+        Promise<Long> future = Promise.promise();
         jobService.getWorkTime(future);
-        return future;
+        return future.future();
     }
 
     /**

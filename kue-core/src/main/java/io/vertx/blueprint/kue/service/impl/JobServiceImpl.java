@@ -16,6 +16,7 @@ import io.vertx.core.logging.LoggerFactory;
 import io.vertx.redis.client.Command;
 import io.vertx.redis.client.RedisAPI;
 import io.vertx.redis.client.Request;
+import io.vertx.redis.client.impl.types.MultiType;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -61,8 +62,8 @@ public final class JobServiceImpl implements JobService {
         client.hgetall(RedisHelper.getKey("job:" + id), r -> {
             if (r.succeeded()) {
                 try {
-                    JsonObject result = new JsonObject(toMap(
-                            StreamSupport.stream(r.result().spliterator(), false).toArray()));
+                    JsonObject result = new JsonObject(toMap((Arrays.asList(Arrays.asList(StreamSupport
+                            .stream(r.result().spliterator(), false).toArray()).toArray(new MultiType[0])))));
                     if (!result.containsKey("id")) {
                         handler.handle(Future.succeededFuture());
                     } else {
@@ -358,18 +359,11 @@ public final class JobServiceImpl implements JobService {
         return this;
     }
 
-    private static Map<String, Object> toMap(final Object... params) {
-        if (params.length % 2 != 0) {
-            throw new IllegalArgumentException("Last key has no value");
-        }
+    private static Map<String, Object> toMap(final List<MultiType> params) {
         Map<String, Object> result = new HashMap<>();
-        String key = null;
-        for (Object param : params) {
-            if (key == null) {
-                key = param.toString();
-            } else {
-                result.put(key, param.toString());
-                key = null;
+        for (MultiType param : params) {
+            for (String key : param.getKeys()) {
+                result.put(key, param.get(key).toString());
             }
         }
         return result;

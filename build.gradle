@@ -1,7 +1,7 @@
 configure(allprojects) { project ->
 
   ext {
-    vertxVersion = "3.9.0"
+    vertxVersion = "4.0.0"
   }
 
   apply plugin: 'java'
@@ -17,7 +17,6 @@ configure(allprojects) { project ->
     compile("io.vertx:vertx-core:${vertxVersion}")
     compile("io.vertx:vertx-rx-java:${vertxVersion}")
     compile("io.vertx:vertx-hazelcast:${vertxVersion}")
-    compileOnly("io.vertx:vertx-lang-js:${vertxVersion}")
     compileOnly("io.vertx:vertx-codegen:${vertxVersion}")
 
     testCompile("io.vertx:vertx-unit:${vertxVersion}")

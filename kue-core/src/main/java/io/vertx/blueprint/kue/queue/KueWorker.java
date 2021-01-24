@@ -44,7 +44,7 @@ public class KueWorker extends AbstractVerticle {
     }
 
     @Override
-    public void start(Future<Void> startFuture) {
+    public void start(Promise<Void> startFuture) {
         this.eventBus = vertx.eventBus();
         RedisHelper.client(vertx, config()).connect(it -> {
             if (it.succeeded()) {

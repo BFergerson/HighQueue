@@ -7,6 +7,7 @@ import io.vertx.codegen.annotations.Fluent;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.Promise;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
@@ -175,7 +176,7 @@ public class Job {
         logger.debug("Job::state(from: " + oldState + ", to:" + newState.name() + ") - Id: " + getId());
 
         List<Request> commandRequests = new ArrayList<>();
-        Future<Job> future = Future.future();
+        Promise<Job> future = Promise.promise();
         if (oldState != null && !oldState.equals(newState)) {
             commandRequests.add(Request.cmd(Command.ZREM)
                     .arg(RedisHelper.getStateKey(oldState))
@@ -231,7 +232,7 @@ public class Job {
             }
         });
 
-        return future.compose(Job::updateNow);
+        return future.future().compose(Job::updateNow);
     }
 
     /**
@@ -290,9 +291,9 @@ public class Job {
      * Log with some messages.
      */
     public Future<Job> log(String msg) {
-        Future<Job> future = Future.future();
+        Promise<Job> future = Promise.promise();
         getClient().rpush(Arrays.asList(RedisHelper.getKey("job:" + this.id + ":log"), msg), _completer(future, this));
-        return future.compose(Job::updateNow);
+        return future.future().compose(Job::updateNow);
     }
 
     /**
@@ -317,7 +318,7 @@ public class Job {
      */
     protected Future<Job> set(String key, String value) {
         logger.debug(String.format("Setting %s to %s", key, value));
-        Future<Job> future = Future.future();
+        Promise<Job> future = Promise.promise();
         getClient().hset(Arrays.asList(RedisHelper.getKey("job:" + this.id), key, value), r -> {
             if (r.succeeded()) {
                 logger.debug(String.format("Set %s to %s", key, value));
@@ -327,7 +328,7 @@ public class Job {
                 future.fail(r.cause());
             }
         });
-        return future;
+        return future.future();
     }
 
     /**
@@ -338,7 +339,7 @@ public class Job {
      */
     @Fluent
     public Future<String> get(String key) {
-        Future<String> future = Future.future();
+        Promise<String> future = Promise.promise();
         getClient().hget(RedisHelper.getKey("job:" + this.id), key, it -> {
             if (it.succeeded()) {
                 future.complete(it.result().toString());
@@ -346,7 +347,7 @@ public class Job {
                 future.fail(it.cause());
             }
         });
-        return future;
+        return future.future();
     }
 
     // TODO: enhancement: integrate backoff with Circuit Breaker
@@ -388,7 +389,7 @@ public class Job {
      * Attempt once and save attemptAdd times to Redis backend.
      */
     private Future<Job> attemptAdd() {
-        Future<Job> future = Future.future();
+        Promise<Job> future = Promise.promise();
         String key = RedisHelper.getKey("job:" + this.id);
         if (this.attempts < this.max_attempts) {
             getClient().hincrby(key, "attempts", "1", r -> {
@@ -403,7 +404,7 @@ public class Job {
         } else {
             future.complete(this);
         }
-        return future;
+        return future.future();
     }
 
     private Future<Job> attemptInternal() {
@@ -439,12 +440,12 @@ public class Job {
      * Refresh ttl
      */
     Future<Job> refreshTtl() {
-        Future<Job> future = Future.future();
+        Promise<Job> future = Promise.promise();
         if (this.state == JobState.ACTIVE && this.ttl > 0) {
             getClient().zadd(Arrays.asList(RedisHelper.getStateKey(this.state),
                     String.valueOf(System.currentTimeMillis() + ttl), this.zid), _completer(future, this));
         }
-        return future;
+        return future.future();
     }
 
     /**
@@ -457,7 +458,7 @@ public class Job {
         if (this.id > 0)
             return update();
 
-        Future<Job> future = Future.future();
+        Promise<Job> future = Promise.promise();
 
         // generate id
         getClient().incr(RedisHelper.getKey("ids"), res -> {
@@ -485,7 +486,7 @@ public class Job {
             }
         });
 
-        return future.compose(Job::update);
+        return future.future().compose(Job::update);
     }
 
     /**
@@ -500,7 +501,7 @@ public class Job {
      * Update the job.
      */
     Future<Job> update() {
-        Future<Job> future = Future.future();
+        Promise<Job> future = Promise.promise();
         this.updated_at = System.currentTimeMillis();
 
         List<Request> commandRequests = new ArrayList<>();
@@ -519,14 +520,14 @@ public class Job {
 
         // TODO: add search functionality (full-index engine, for Chinese language this is difficult)
 
-        return future.compose(r -> this.state(this.state));
+        return future.future().compose(r -> this.state(this.state));
     }
 
     /**
      * Remove the job.
      */
     public Future<Void> remove() {
-        Future<Void> future = Future.future();
+        Promise<Void> future = Promise.promise();
         List<Request> commandRequests = new ArrayList<>();
         commandRequests.add(Request.cmd(Command.ZREM)
                 .arg(RedisHelper.getKey("jobs:" + this.stateName()))
@@ -549,7 +550,7 @@ public class Job {
                 future.fail(r.cause());
             }
         });
-        return future;
+        return future.future();
     }
 
     /**
@@ -903,7 +904,7 @@ public class Job {
         };
     }
 
-    private static <T, R> Handler<AsyncResult<T>> _completer(Future<R> future, R result) {
+    private static <T, R> Handler<AsyncResult<T>> _completer(Promise<R> future, R result) {
         return r -> {
             if (r.failed()) {
                 future.fail(r.cause());
